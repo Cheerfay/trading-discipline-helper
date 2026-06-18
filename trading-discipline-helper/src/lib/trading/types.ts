@@ -1,0 +1,74 @@
+/**
+ * Trading Discipline Card - Type Definitions
+ */
+
+export type TradeType = 'buy' | 'sell' | 'add' | 'cut' | 'missed' | 'chase_loss';
+
+export type Emotion =
+  | 'excited'
+  | 'anxious'
+  | 'fomo'
+  | 'regret'
+  | 'panic'
+  | 'unwilling'
+  | 'want_recover'
+  | 'certain'
+  | 'other';
+
+export type FocusCheck =
+  | 'check_impulse'
+  | 'check_position'
+  | 'check_reason'
+  | 'check_calm'
+  | 'check_plan'
+  | 'check_review';
+
+export interface TradeCardInput {
+  type: TradeType;
+  symbol: string;
+  thoughts: string;
+  emotions: Emotion[];
+  plannedAmount: string;
+  currentPositionRatio: string;
+  maxLossTolerance: string;
+  originalPlan: string;
+  focusChecks: FocusCheck[];
+  extraAnswers: Record<string, string>;
+  createdAt: string;
+}
+
+export interface EmotionAnalysis {
+  label: string;
+  explanation: string;
+}
+
+export interface Scores {
+  impulseRisk: number;
+  positionRisk: number;
+  reasonQuality: number;
+}
+
+export interface TradeReport {
+  id: string;
+  summary: string;
+  emotionAnalysis: EmotionAnalysis[];
+  scores: Scores;
+  risks: string[];
+  openQuestions: string[];
+  disciplineSuggestion: string;
+  nextActions: string[];
+  disclaimer: string;
+  createdAt: string;
+  input: TradeCardInput;
+}
+
+export interface TradeCardRecord {
+  id: string;
+  type: TradeType;
+  symbol: string;
+  impulseRisk: number;
+  positionRisk: number;
+  reasonQuality: number;
+  summary: string;
+  createdAt: string;
+}
