@@ -39,8 +39,21 @@ const generateReportFn = createServerFn()
       }
 
       // Build full report
+      const validStatuses = ['calm', 'pause', 'cool_down'];
+      const impulseRisk = parsedResponse.scores?.impulseRisk ?? 50;
+      const calmStatus = validStatuses.includes(parsedResponse.calmStatus)
+        ? parsedResponse.calmStatus
+        : impulseRisk > 65
+          ? 'cool_down'
+          : impulseRisk >= 40
+            ? 'pause'
+            : 'calm';
+
       const report: TradeReport = {
         id: crypto.randomUUID(),
+        empathy: parsedResponse.empathy || '先别急，花一分钟看看这个决定是不是经得起推敲。',
+        calmStatus,
+        keyAction: parsedResponse.keyAction || '在下单前，先把你的退出条件和最大可接受亏损写下来。',
         summary: parsedResponse.summary,
         emotionAnalysis: parsedResponse.emotionAnalysis || [],
         scores: {

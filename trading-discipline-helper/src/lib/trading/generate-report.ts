@@ -8,6 +8,7 @@ import type {
   TradeReport,
   EmotionAnalysis,
   Scores,
+  CalmStatus,
 } from './types';
 
 const IMPULSE_KEYWORDS = [
@@ -375,6 +376,35 @@ function generateSummary(input: TradeCardInput): string {
   return `你正在${typeLabel}相关的决策检查。`;
 }
 
+function getCalmStatus(impulseRisk: number): CalmStatus {
+  if (impulseRisk > 65) return 'cool_down';
+  if (impulseRisk >= 40) return 'pause';
+  return 'calm';
+}
+
+function generateEmpathy(input: TradeCardInput, scores: Scores): string {
+  if (scores.impulseRisk > 65) {
+    return '想立刻行动的感觉很正常，但你现在更多是被情绪推着走，而不是看清了局面。';
+  }
+  if (scores.impulseRisk >= 40) {
+    return '这个想法可以理解，先别急——花一分钟看看它是不是经得起推敲。';
+  }
+  return '你现在的状态相对平稳，那就更值得把判断的依据再确认一遍。';
+}
+
+function generateKeyAction(input: TradeCardInput, scores: Scores): string {
+  if (scores.impulseRisk > 65) {
+    return '先放下这笔交易，给自己 24 小时，明天此刻再回来看一次。';
+  }
+  if (scores.positionRisk > 70) {
+    return '把这次操作的仓位先减半，并写下你的退出条件。';
+  }
+  if (scores.reasonQuality < 40) {
+    return '先用一句话写清楚：什么情况下你会承认这次判断错了。';
+  }
+  return '在下单前，先把你的退出条件和最大可接受亏损写下来。';
+}
+
 export function generateDisciplineReport(input: TradeCardInput): TradeReport {
   const impulseRisk = calculateImpulseRisk(input);
   const positionRisk = calculatePositionRisk(input);
@@ -395,6 +425,9 @@ export function generateDisciplineReport(input: TradeCardInput): TradeReport {
 
   return {
     id: crypto.randomUUID(),
+    empathy: generateEmpathy(input, scores),
+    calmStatus: getCalmStatus(impulseRisk),
+    keyAction: generateKeyAction(input, scores),
     summary,
     emotionAnalysis,
     scores,
@@ -416,6 +449,7 @@ export function toTradeCardRecord(report: TradeReport): {
   id: string;
   type: string;
   symbol: string;
+  calmStatus: CalmStatus;
   impulseRisk: number;
   positionRisk: number;
   reasonQuality: number;
@@ -426,6 +460,7 @@ export function toTradeCardRecord(report: TradeReport): {
     id: report.id,
     type: report.input.type,
     symbol: report.input.symbol,
+    calmStatus: report.calmStatus,
     impulseRisk: report.scores.impulseRisk,
     positionRisk: report.scores.positionRisk,
     reasonQuality: report.scores.reasonQuality,

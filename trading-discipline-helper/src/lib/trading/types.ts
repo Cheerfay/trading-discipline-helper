@@ -48,8 +48,20 @@ export interface Scores {
   reasonQuality: number;
 }
 
+// Overall calm status — the single signal shown on the first screen.
+// calm: 可以冷静决策 / pause: 建议暂停 / cool_down: 强烈建议冷静
+export type CalmStatus = 'calm' | 'pause' | 'cool_down';
+
 export interface TradeReport {
   id: string;
+  // --- Minimal first-screen layer ---
+  // 一句共情/直击要害的话，先安抚再点醒
+  empathy: string;
+  // 单一整体状态信号灯（取代三个并列分数）
+  calmStatus: CalmStatus;
+  // 一个最关键的冷静动作
+  keyAction: string;
+  // --- Full analysis layer (collapsed) ---
   summary: string;
   emotionAnalysis: EmotionAnalysis[];
   scores: Scores;
@@ -66,6 +78,7 @@ export interface TradeCardRecord {
   id: string;
   type: TradeType;
   symbol: string;
+  calmStatus: CalmStatus;
   impulseRisk: number;
   positionRisk: number;
   reasonQuality: number;

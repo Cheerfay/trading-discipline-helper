@@ -38,6 +38,7 @@ export function getCardRecords(): TradeCardRecord[] {
     id: r.id,
     type: r.input.type,
     symbol: r.input.symbol,
+    calmStatus: r.calmStatus ?? 'pause',
     impulseRisk: r.scores.impulseRisk,
     positionRisk: r.scores.positionRisk,
     reasonQuality: r.scores.reasonQuality,
