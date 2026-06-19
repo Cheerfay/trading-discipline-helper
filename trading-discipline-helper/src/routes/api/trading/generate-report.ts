@@ -2,87 +2,147 @@ import { createFileRoute } from '@tanstack/react-router';
 import { createServerFn } from '@tanstack/react-start';
 import { respData, respErr } from '@/lib/resp';
 import { envConfigs } from '@/config';
-import { callClaudeAPI, buildPrompt } from '@/lib/trading/claude-api';
-import type { TradeCardInput, TradeReport } from '@/lib/trading/types';
+import { buildPrompt, CALM_CARD_SYSTEM_PROMPT } from '@/lib/trading/claude-api';
+import { callLLM, getProviderDefaults, type LLMProvider, type LLMConfig } from '@/lib/trading/llm';
+import type { TradeCardInput, CalmCard, CalmStatus } from '@/lib/trading/types';
 
-// Server function to generate report using Claude API
-const generateReportFn = createServerFn()
+const VALID_STATUSES: CalmStatus[] = [
+  'can_think_but_wait',
+  'pause_first',
+  'strong_pause',
+  'review_not_trade',
+];
+
+const STATUS_TEXT: Record<CalmStatus, string> = {
+  can_think_but_wait: '可以继续想，但别急着下单',
+  pause_first: '建议先暂停',
+  strong_pause: '强烈建议先冷静',
+  review_not_trade: '更适合复盘，不适合立刻交易',
+};
+
+/**
+ * Resolve the active LLM provider config from env. Returns null + an error
+ * message when the selected provider's API key is missing.
+ */
+function resolveLLMConfig(): { config?: LLMConfig; error?: string } {
+  const provider = (envConfigs.llm_provider || 'anthropic') as LLMProvider;
+  const defaults = getProviderDefaults(provider);
+  if (!defaults) return { error: `Unknown LLM_PROVIDER: ${provider}` };
+
+  const keyMap: Record<LLMProvider, string> = {
+    anthropic: envConfigs.anthropic_api_key,
+    openai: envConfigs.openai_api_key,
+    gemini: envConfigs.gemini_api_key,
+  };
+  const baseURLMap: Record<LLMProvider, string> = {
+    anthropic: envConfigs.anthropic_base_url,
+    openai: envConfigs.openai_base_url,
+    gemini: envConfigs.gemini_base_url,
+  };
+
+  const apiKey = keyMap[provider];
+  if (!apiKey) {
+    return { error: `${provider} API key not configured (set the matching *_API_KEY env var)` };
+  }
+
+  return {
+    config: {
+      provider,
+      apiKey,
+      model: envConfigs.llm_model || defaults.model,
+      baseURL: baseURLMap[provider] || defaults.baseURL,
+    },
+  };
+}
+
+function deriveStatus(input: TradeCardInput, scores: any): CalmStatus {
+  const impulse = scores?.impulseRisk ?? 50;
+  const reason = scores?.reasonQuality ?? 50;
+  const position = scores?.positionRisk ?? 50;
+  if (input.type === 'missed' || input.type === 'chase_loss') {
+    return impulse >= 80 ? 'strong_pause' : 'review_not_trade';
+  }
+  if (impulse >= 80 || reason <= 30) return 'strong_pause';
+  if (impulse >= 60 || position >= 70) return 'pause_first';
+  return 'can_think_but_wait';
+}
+
+const generateCardFn = createServerFn()
   .validator((data: TradeCardInput) => data)
   .handler(async ({ data }) => {
-    const apiKey = envConfigs.anthropic_api_key;
-
-    if (!apiKey) {
-      return respErr('ANTHROPIC_API_KEY not configured');
+    const { config, error: configError } = resolveLLMConfig();
+    if (!config) {
+      return respErr(configError || 'LLM not configured');
     }
 
     try {
       const messages = buildPrompt(data);
-      const baseURL = envConfigs.anthropic_base_url || 'https://api.anthropic.com';
-      const response = await callClaudeAPI(messages, apiKey, 'claude-3-5-sonnet-20241022', baseURL);
+      const response = await callLLM(config, CALM_CARD_SYSTEM_PROMPT, messages);
 
-      // Parse JSON response
-      let parsedResponse;
+      let parsed: any;
       try {
-        // Extract JSON from response (in case there's extra text)
         const jsonMatch = response.match(/\{[\s\S]*\}/);
-        const jsonStr = jsonMatch ? jsonMatch[0] : response;
-        parsedResponse = JSON.parse(jsonStr);
-      } catch (e) {
-        console.error('Failed to parse Claude response:', response);
+        parsed = JSON.parse(jsonMatch ? jsonMatch[0] : response);
+      } catch {
+        console.error('Failed to parse LLM response:', response);
         return respErr('Failed to parse AI response');
       }
 
-      // Validate response structure
-      if (!parsedResponse.summary || !parsedResponse.scores) {
-        console.error('Invalid response structure:', parsedResponse);
+      if (!parsed.emotionalOpening || !parsed.coreInsight) {
+        console.error('Invalid response structure:', parsed);
         return respErr('Invalid AI response structure');
       }
 
-      // Build full report
-      const validStatuses = ['calm', 'pause', 'cool_down'];
-      const impulseRisk = parsedResponse.scores?.impulseRisk ?? 50;
-      const calmStatus = validStatuses.includes(parsedResponse.calmStatus)
-        ? parsedResponse.calmStatus
-        : impulseRisk > 65
-          ? 'cool_down'
-          : impulseRisk >= 40
-            ? 'pause'
-            : 'calm';
-
-      const report: TradeReport = {
-        id: crypto.randomUUID(),
-        empathy: parsedResponse.empathy || '先别急，花一分钟看看这个决定是不是经得起推敲。',
-        calmStatus,
-        keyAction: parsedResponse.keyAction || '在下单前，先把你的退出条件和最大可接受亏损写下来。',
-        summary: parsedResponse.summary,
-        emotionAnalysis: parsedResponse.emotionAnalysis || [],
-        scores: {
-          impulseRisk: parsedResponse.scores?.impulseRisk || 50,
-          positionRisk: parsedResponse.scores?.positionRisk || 50,
-          reasonQuality: parsedResponse.scores?.reasonQuality || 50,
-        },
-        risks: parsedResponse.risks || [],
-        openQuestions: parsedResponse.openQuestions || [],
-        disciplineSuggestion: parsedResponse.disciplineSuggestion || '',
-        nextActions: parsedResponse.nextActions || [],
-        disclaimer:
-          '本报告仅用于投资纪律检查和自我复盘，不构成任何投资建议、买卖建议或收益承诺。所有投资决策应由用户独立判断并自行承担风险。',
-        createdAt: new Date().toISOString(),
-        input: data,
+      const scores = {
+        impulseRisk: parsed.detail?.scores?.impulseRisk ?? 50,
+        positionRisk: parsed.detail?.scores?.positionRisk ?? 50,
+        reasonQuality: parsed.detail?.scores?.reasonQuality ?? 50,
       };
 
-      return respData(report);
+      const calmStatus: CalmStatus = VALID_STATUSES.includes(parsed.calmStatus)
+        ? parsed.calmStatus
+        : deriveStatus(data, scores);
+
+      const card: CalmCard = {
+        id: crypto.randomUUID(),
+        type: data.type,
+        symbol: data.symbol,
+        userThought: data.thoughts,
+        emotionalOpening: parsed.emotionalOpening,
+        coreInsight: parsed.coreInsight,
+        calmStatus,
+        calmStatusText: STATUS_TEXT[calmStatus],
+        oneAction: parsed.oneAction || '先离开行情页面 30 分钟，回来后如果还想操作，再写下一个具体理由。',
+        selfCheckQuestions: Array.isArray(parsed.selfCheckQuestions)
+          ? parsed.selfCheckQuestions.slice(0, 3)
+          : [],
+        lesson: parsed.lesson || '',
+        detail: {
+          emotionAnalysis: Array.isArray(parsed.detail?.emotionAnalysis)
+            ? parsed.detail.emotionAnalysis
+            : [],
+          scores,
+          risks: Array.isArray(parsed.detail?.risks) ? parsed.detail.risks.slice(0, 4) : [],
+          nextActions: Array.isArray(parsed.detail?.nextActions)
+            ? parsed.detail.nextActions.slice(0, 4)
+            : [],
+          disclaimer:
+            '本卡片仅用于投资纪律检查和自我复盘，不构成任何投资建议、买卖建议或收益承诺。所有投资决策应由你独立判断并自行承担风险。',
+        },
+        createdAt: new Date().toISOString(),
+      };
+
+      return respData(card);
     } catch (error) {
       console.error('Claude API error:', error);
-      return respErr(error instanceof Error ? error.message : 'Failed to generate report');
+      return respErr(error instanceof Error ? error.message : 'Failed to generate card');
     }
   });
 
 async function POST({ request }: { request: Request }) {
   try {
     const body = await request.json();
-    const result = await generateReportFn({ data: body });
-    return result;
+    return await generateCardFn({ data: body });
   } catch (error) {
     return respErr(error instanceof Error ? error.message : 'Invalid request');
   }

@@ -1,51 +1,31 @@
 /**
- * Trading Discipline Card - Mock Report Generation
- * This is a rule-based mock implementation. Replace with real LLM API later.
+ * Trading Discipline Card - Mock Card Generation
+ *
+ * Rule-based mock that produces a CalmCard. First-screen fields
+ * (emotionalOpening → coreInsight → calmStatus → oneAction →
+ * selfCheckQuestions → lesson) are generated first; the collapsed `detail`
+ * layer is derived afterwards. Replace with the real LLM later.
  */
 
 import type {
   TradeCardInput,
-  TradeReport,
+  CalmCard,
+  CalmCardRecord,
+  CalmStatus,
   EmotionAnalysis,
   Scores,
-  CalmStatus,
+  Scene,
 } from './types';
 
 const IMPULSE_KEYWORDS = [
-  '害怕错过',
-  '怕错过',
-  '上头',
-  '群里',
-  '博主',
-  '朋友说',
-  '连续上涨',
-  '不想错过',
-  '回本',
-  '不甘心',
-  '恐慌',
-  '受不了',
-  '赶紧',
-  '立刻',
-  '抄底',
-  '起飞',
-  'fomo',
-  'FOMO',
+  '害怕错过', '怕错过', '上头', '群里', '博主', '朋友说', '连续上涨',
+  '不想错过', '回本', '不甘心', '恐慌', '受不了', '赶紧', '立刻',
+  '抄底', '起飞', 'fomo', 'FOMO',
 ];
 
 const REASON_KEYWORDS = [
-  '财报',
-  '估值',
-  '现金流',
-  '利润',
-  '基本面',
-  '商业模式',
-  '竞争优势',
-  '行业',
-  '长期',
-  '反证',
-  '风险',
-  '退出条件',
-  '计划',
+  '财报', '估值', '现金流', '利润', '基本面', '商业模式', '竞争优势',
+  '行业', '长期', '反证', '风险', '退出条件', '计划',
 ];
 
 const EMOTION_LABELS: Record<string, string> = {
@@ -60,53 +40,38 @@ const EMOTION_LABELS: Record<string, string> = {
   other: '其他',
 };
 
-const FOCUS_CHECK_LABELS: Record<string, string> = {
-  check_impulse: '是否上头',
-  check_position: '仓位是否过高',
-  check_reason: '理由是否充分',
-  check_calm: '是否该冷静',
-  check_plan: '是否违反原计划',
-  check_review: '如何复盘这次错误',
+const SCENE_LABELS: Record<Scene, string> = {
+  buy: '想买入',
+  sell: '想卖出',
+  add: '想加仓',
+  cut: '想割肉',
+  missed: '卖飞了',
+  chase_loss: '追高亏了',
+  unclear: '说不清，就是想动一下',
 };
 
-const TRADE_TYPE_LABELS: Record<string, string> = {
-  buy: '买入',
-  sell: '卖出',
-  add: '加仓',
-  cut: '割肉',
-  missed: '卖飞复盘',
-  chase_loss: '追高亏损复盘',
-};
+// ---- Scores (kept for the collapsed detail layer + status mapping) ----
 
 function calculateImpulseRisk(input: TradeCardInput): number {
   let score = 30;
   const text = (input.thoughts + ' ' + input.emotions.join(' ')).toLowerCase();
-
   for (const keyword of IMPULSE_KEYWORDS) {
-    if (text.includes(keyword.toLowerCase())) {
-      score += 10;
-    }
+    if (text.includes(keyword.toLowerCase())) score += 10;
   }
-
-  // Emotion-based adjustment
   if (input.emotions.includes('fomo')) score += 15;
   if (input.emotions.includes('panic')) score += 15;
   if (input.emotions.includes('want_recover')) score += 10;
   if (input.emotions.includes('unwilling')) score += 10;
-
   return Math.min(score, 95);
 }
 
 function calculatePositionRisk(input: TradeCardInput): number {
-  const ratio = input.currentPositionRatio;
-
+  const ratio = input.currentPositionRatio || '';
   if (ratio.includes('0%') || ratio.includes('空仓')) return 20;
   if (ratio.includes('10%') || ratio.includes('5%') || ratio.includes('8%')) return 30;
   if (ratio.includes('15%') || ratio.includes('20%')) return 50;
   if (ratio.includes('30%') || ratio.includes('40%')) return 70;
   if (ratio.includes('50%') || ratio.includes('60%') || ratio.includes('70%')) return 90;
-
-  // Try to parse percentage
   const match = ratio.match(/(\d+)/);
   if (match) {
     const num = parseInt(match[1], 10);
@@ -115,356 +80,255 @@ function calculatePositionRisk(input: TradeCardInput): number {
     if (num <= 40) return 70;
     return 90;
   }
-
   return 50;
 }
 
 function calculateReasonQuality(input: TradeCardInput): number {
   let score = 60;
   const text = input.thoughts.toLowerCase();
-
-  // Check for good reason keywords
   for (const keyword of REASON_KEYWORDS) {
-    if (text.includes(keyword)) {
-      score += 5;
-    }
+    if (text.includes(keyword)) score += 5;
   }
-
-  // Penalize for no original plan
   if (!input.originalPlan || input.originalPlan.trim() === '没有' || input.originalPlan.trim() === '') {
     score -= 15;
   }
-
-  // Penalize for short thoughts
-  if (input.thoughts.length < 20) {
-    score -= 10;
-  }
-
-  // Bonus for specific focus checks
-  if (input.focusChecks.includes('check_reason')) score += 5;
-  if (input.focusChecks.includes('check_plan')) score += 5;
-
+  if (input.thoughts.length < 20) score -= 10;
   return Math.max(5, Math.min(score, 95));
 }
+
+// ---- Calm status (single signal) ----
+
+const CALM_STATUS_TEXT: Record<CalmStatus, string> = {
+  can_think_but_wait: '可以继续想，但别急着下单',
+  pause_first: '建议先暂停',
+  strong_pause: '强烈建议先冷静',
+  review_not_trade: '更适合复盘，不适合立刻交易',
+};
+
+function getCalmStatus(input: TradeCardInput, scores: Scores): CalmStatus {
+  // Review scenes lean toward "review, not trade".
+  if (input.type === 'missed' || input.type === 'chase_loss') {
+    if (scores.impulseRisk >= 80) return 'strong_pause';
+    return 'review_not_trade';
+  }
+  if (scores.impulseRisk >= 80 || scores.reasonQuality <= 30) return 'strong_pause';
+  if (scores.impulseRisk >= 60) return 'pause_first';
+  if (scores.positionRisk >= 70) return 'pause_first';
+  return 'can_think_but_wait';
+}
+
+// ---- First-screen content (scene-aware) ----
+
+function generateEmotionalOpening(input: TradeCardInput): string {
+  switch (input.type) {
+    case 'missed':
+      return '看到卖掉的股票继续涨，那种后悔很正常——大脑很容易把「少赚」当成「亏了」。但这不代表你必须立刻追回，我们先把后悔和新的买入理由分开看。';
+    case 'chase_loss':
+      return '追高之后看着账户回撤，那种懊恼谁都会有。先别急着责怪自己，重要的不是这次价格，而是当时是什么推着你按下了买入。';
+    case 'cut':
+      return '看着浮亏一点点扩大，想赶紧了结那种难受，是很真实的感觉。先停一下——我们分清楚，是逻辑坏了，还是只是疼。';
+    case 'add':
+      return '想再加一点、把成本拉下来，这个念头很常见。先接住它，再看看这是不是因为投资逻辑真的变强了。';
+    case 'sell':
+      return '想赶紧卖掉、结束这份不安，是可以理解的。先别急，我们看看这是计划里的卖出，还是情绪想找个出口。';
+    case 'buy':
+      return '现在很想买进去的冲动很正常，尤其是在它一直涨的时候。先停一下，我们一起看看这是计划，还是怕错过。';
+    default:
+      return '市场波动的时候坐不住，是很自然的反应。先别急着做点什么，我们慢慢看，你现在到底是想决策，还是只是想动一下。';
+  }
+}
+
+function generateCoreInsight(input: TradeCardInput, scores: Scores): string {
+  switch (input.type) {
+    case 'missed':
+      return '你可能在用一次新的交易，来修复刚刚卖飞带来的后悔感。';
+    case 'chase_loss':
+      return '这次更值得复盘的不是价格，而是当时为什么被上涨和别人的情绪推着买入。';
+    case 'cut':
+      return '你现在可能是在逃离亏损带来的痛感，而不是基于新的判断退出。';
+    case 'add':
+      return '这次加仓可能更多是在缓解不甘心，而不是因为投资逻辑变强了。';
+    case 'sell':
+      return '你现在可能是在用卖出结束焦虑，而不是因为原来的投资逻辑已经失效。';
+    case 'buy':
+      return '你现在更像是在怕错过，而不是在执行一个清楚的买入计划。';
+    default:
+      return '你现在可能不是想做某个明确决策，而是市场波动让你坐不住了。';
+  }
+}
+
+function generateOneAction(input: TradeCardInput, scores: Scores): string {
+  switch (input.type) {
+    case 'missed':
+      return '先不要买回。把这次记录为「卖飞后的后悔冲动」，等一个完整交易日，明天重新写一次买入理由。';
+    case 'chase_loss':
+      return '先不要急着找下一次机会。把当时触发你买入的信号写下来，作为下一次的提醒。';
+    case 'cut':
+      return '先区分两个问题：是价格跌了，还是原来的买入逻辑坏了。没分清前，先不要立刻操作。';
+    case 'add':
+      return '先不要追加仓位。写出一个新增理由，如果只是「摊低成本」，就先暂停。';
+    case 'sell':
+      return '先把原来的卖出条件写出来。如果当前没有触发原条件，先暂停一个交易日。';
+    case 'buy':
+      return '先不要立刻下单。明天同一时间，重新写一次买入理由，如果还能成立，再考虑是否行动。';
+    default:
+      return '先离开行情页面 30 分钟。回来后如果仍然想操作，再写下一个具体理由。';
+  }
+}
+
+function generateSelfCheckQuestions(input: TradeCardInput): string[] {
+  switch (input.type) {
+    case 'missed':
+      return [
+        '如果它明天不涨反跌，你还会想买回来吗？',
+        '这次想买回，是因为有新理由，还是因为后悔？',
+        '买回来会不会打乱你原本的仓位安排？',
+      ];
+    case 'chase_loss':
+      return [
+        '当时如果没人讨论它，你还会买吗？',
+        '现在想做的，是复盘，还是想赶紧扳回来？',
+        '下一次遇到同样的信号，你打算怎么做？',
+      ];
+    case 'cut':
+      return [
+        '如果明天反弹，你还愿意做现在这个决定吗？',
+        '是公司基本面变了，还是只是价格让你难受？',
+        '这次卖出符合你原本的退出条件吗？',
+      ];
+    case 'add':
+      return [
+        '如果忽略已有的浮亏，你还会在现在这个价格买入吗？',
+        '这次加仓是因为逻辑变强了，还是因为不甘心？',
+        '加仓之后，这只标的的仓位会不会超出你的上限？',
+      ];
+    case 'sell':
+      return [
+        '如果明天它继续涨，你能接受现在卖掉吗？',
+        '这次卖出，是计划里的，还是想结束焦虑？',
+        '原来的卖出条件，现在真的触发了吗？',
+      ];
+    case 'buy':
+      return [
+        '如果明天它反向波动，你还愿意做同样决定吗？',
+        '这次买入，是因为逻辑变强了，还是因为不想错过？',
+        '这次操作会不会破坏你的仓位纪律？',
+      ];
+    default:
+      return [
+        '你现在是想解决一个具体问题，还是只是坐不住？',
+        '如果今天什么都不做，会有什么真实的损失吗？',
+        '半小时后再看，你还会想做同样的操作吗？',
+      ];
+  }
+}
+
+function generateLesson(input: TradeCardInput): string {
+  switch (input.type) {
+    case 'missed':
+      return '卖飞是交易的一部分。真正的成本，是因为后悔而追高带来的下一次亏损。';
+    case 'chase_loss':
+      return '被上涨和他人情绪推着买入，是最容易重复的错误。记下触发信号，比记住价格更有用。';
+    default:
+      return '';
+  }
+}
+
+// ---- Detail layer (collapsed) ----
 
 function generateEmotionAnalysis(input: TradeCardInput): EmotionAnalysis[] {
   const analysis: EmotionAnalysis[] = [];
   const text = input.thoughts.toLowerCase();
 
   if (input.emotions.includes('fomo')) {
-    analysis.push({
-      label: 'FOMO (害怕错过)',
-      explanation: '你提到害怕错过，这通常意味着受到市场情绪或他人影响，而非基于独立判断。',
-    });
+    analysis.push({ label: '害怕错过', explanation: '看到价格上涨容易产生「再不上车就来不及」的紧迫感，这往往来自情绪而非判断。' });
   }
-
   if (input.emotions.includes('panic')) {
-    analysis.push({
-      label: '恐慌',
-      explanation: '恐慌情绪可能导致非理性决策，建议先冷静下来再评估。',
-    });
+    analysis.push({ label: '恐慌', explanation: '波动放大时人容易想赶紧「做点什么」，但行动本身并不会让风险变小。' });
   }
-
   if (input.emotions.includes('regret') || input.emotions.includes('want_recover')) {
-    analysis.push({
-      label: '后悔驱动 / 想回本',
-      explanation: '基于过去的亏损或错失机会做决策，容易陷入"沉没成本谬误"。',
-    });
+    analysis.push({ label: '后悔与想回本', explanation: '基于过去的得失做决定，容易把情绪当成新的买卖理由。' });
   }
-
   if (input.emotions.includes('unwilling')) {
-    analysis.push({
-      label: '不甘心',
-      explanation: '不甘心可能导致"加仓摊低成本"的危险行为，而非基于当前投资逻辑。',
-    });
+    analysis.push({ label: '不甘心', explanation: '不甘心常常推动「加仓摊成本」，而这通常和投资逻辑无关。' });
   }
-
   if (text.includes('博主') || text.includes('群里') || text.includes('朋友')) {
-    analysis.push({
-      label: '从众心理',
-      explanation: '你的决策可能受到他人影响，建议独立验证信息来源。',
-    });
+    analysis.push({ label: '受他人影响', explanation: '你的想法里有别人的声音，值得先独立确认一下信息来源。' });
   }
-
-  if (text.includes('成本') || text.includes('买入价')) {
-    analysis.push({
-      label: '锚定成本',
-      explanation: '过度关注买入成本而非当前价值，可能导致错误的卖出决策。',
-    });
-  }
-
-  if (input.emotions.includes('certain')) {
-    analysis.push({
-      label: '过度自信',
-      explanation: '过度自信可能导致忽视风险，建议保持审慎态度。',
-    });
-  }
-
   if (analysis.length === 0) {
-    analysis.push({
-      label: '情绪状态相对稳定',
-      explanation: '当前未检测到明显的情绪偏差，但仍需理性评估决策。',
-    });
+    analysis.push({ label: '情绪相对平稳', explanation: '目前没有明显的情绪信号，那就更值得把判断依据再确认一遍。' });
   }
-
   return analysis;
 }
 
 function generateRisks(input: TradeCardInput, scores: Scores): string[] {
   const risks: string[] = [];
-
-  if (scores.impulseRisk > 60) {
-    risks.push('当前决策中情绪成分较强，建议先冷静24小时后再评估。');
-  }
-
-  if (scores.positionRisk > 60) {
-    risks.push('当前仓位或计划仓位可能过高，单票风险暴露较大。');
-  }
-
-  if (scores.reasonQuality < 50) {
-    risks.push('当前决策理由不够充分，缺乏基本面或长期逻辑支撑。');
-  }
-
+  if (scores.impulseRisk > 60) risks.push('这次想法里情绪的成分偏多，值得先放一放。');
+  if (scores.positionRisk > 60) risks.push('这只标的的仓位已经不低，再动手前先看一眼整体配置。');
+  if (scores.reasonQuality < 50) risks.push('买卖理由还可以再补一层事实依据。');
   if (!input.originalPlan || input.originalPlan.trim() === '没有') {
-    risks.push('本次操作缺少明确的交易计划，建议先制定计划再执行。');
+    risks.push('这次操作还没有清楚的计划做支撑。');
   }
-
-  if (input.type === 'add' && input.thoughts.includes('摊成本')) {
-    risks.push('加仓可能只是为了摊低成本，而非投资逻辑增强，这是危险信号。');
+  while (risks.length < 2) {
+    risks.push('可以再想想：什么情况下，你会承认这次判断是错的。');
   }
-
-  if (input.type === 'cut' && input.emotions.includes('panic')) {
-    risks.push('割肉决策可能受恐慌情绪驱动，而非投资逻辑被证伪。');
-  }
-
-  if (input.type === 'missed' && input.emotions.includes('regret')) {
-    risks.push('卖飞后的后悔可能导致追高买回，建议先复盘原计划。');
-  }
-
-  if (input.type === 'chase_loss') {
-    risks.push('追高买入往往发生在情绪高点，风险收益比不利。');
-  }
-
-  if (!input.maxLossTolerance || input.maxLossTolerance.includes('不能接受')) {
-    risks.push('缺少明确的亏损边界，建议先设定最大可接受亏损。');
-  }
-
-  // Ensure at least 3 risks
-  while (risks.length < 3) {
-    risks.push('建议补充反证信息，思考什么情况下你的判断会是错误的。');
-  }
-
-  return risks.slice(0, 5);
-}
-
-function generateOpenQuestions(input: TradeCardInput): string[] {
-  const questions: string[] = [];
-
-  if (!input.maxLossTolerance || input.maxLossTolerance.includes('不能接受')) {
-    questions.push('如果这笔交易亏损20%，你是否仍能接受？');
-  }
-
-  if (input.currentPositionRatio.includes('40%') || input.currentPositionRatio.includes('50%')) {
-    questions.push('这次操作是否会突破你的单票仓位上限？');
-  }
-
-  questions.push('你有没有看过反方观点？什么情况下你的判断会是错误的？');
-
-  if (!input.originalPlan || input.originalPlan.trim() === '没有') {
-    questions.push('你的退出条件是什么？什么情况下应该卖出？');
-  }
-
-  questions.push('这次操作是在执行计划，还是在缓解情绪？');
-
-  if (input.type === 'buy' || input.type === 'add') {
-    questions.push('如果买入后继续下跌20%，你会怎么办？');
-  }
-
-  if (input.type === 'sell' || input.type === 'cut') {
-    questions.push('如果卖出后继续上涨，你能否接受？');
-  }
-
-  return questions.slice(0, 5);
-}
-
-function generateDisciplineSuggestion(input: TradeCardInput, scores: Scores): string {
-  if (scores.impulseRisk > 70) {
-    return '建议先进入24小时冷静期，避免在情绪高点做决策。冷静期结束后，重新评估你的理由是否充分。';
-  }
-
-  if (scores.positionRisk > 70) {
-    return '建议将本次操作拆成更小仓位，严格控制单票风险暴露。同时补充退出条件和止损边界。';
-  }
-
-  if (scores.reasonQuality < 40) {
-    return '建议先补充买入/卖出的核心理由，包括基本面分析、估值判断、以及反证条件。理由不充分时，不做操作。';
-  }
-
-  if (input.type === 'missed' && input.emotions.includes('regret')) {
-    return '建议不要因为后悔而立刻追高买回。卖飞是交易的一部分，重要的是复盘原计划是否有效，而非情绪化补救。';
-  }
-
-  if (input.type === 'chase_loss') {
-    return '建议先复盘追高的原因，识别情绪触发点。未来制定计划时，提前设定买入条件和止损边界，避免情绪化追高。';
-  }
-
-  if (input.type === 'add' && input.thoughts.includes('摊成本')) {
-    return '加仓应该是因为投资逻辑增强，而非为了摊低成本。建议重新评估你的投资逻辑是否真的变好了。';
-  }
-
-  if (!input.originalPlan || input.originalPlan.trim() === '没有') {
-    return '建议先制定完整的交易计划，包括买入理由、估值目标、退出条件和止损边界。没有计划时，不做操作。';
-  }
-
-  return '建议先写清楚本次操作的假设和反证条件，设置明确的退出边界，然后等待冷静期后再重新评估。';
+  return risks.slice(0, 4);
 }
 
 function generateNextActions(input: TradeCardInput, scores: Scores): string[] {
   const actions: string[] = [];
-
-  if (scores.reasonQuality < 60) {
-    actions.push('补充买入/卖出的核心理由和事实依据');
-  }
-
-  if (!input.maxLossTolerance || input.maxLossTolerance.includes('不能接受')) {
-    actions.push('设置最大亏损边界（如亏损10%强制止损）');
-  }
-
-  actions.push('设置明确的退出条件（什么情况下卖出）');
-
-  if (scores.positionRisk > 50) {
-    actions.push('检查仓位上限，确保单票风险可控');
-  }
-
-  if (scores.impulseRisk > 50) {
-    actions.push('等待24小时冷静期后再重新评估');
-  }
-
-  actions.push('保存本次冷静卡，用于后续复盘');
-
-  return actions.slice(0, 5);
+  if (scores.reasonQuality < 60) actions.push('用一句话写清楚这次操作的核心理由');
+  if (!input.maxLossTolerance) actions.push('给自己设一个最大可接受亏损');
+  actions.push('写下退出条件：什么情况下你会离场');
+  if (scores.impulseRisk > 50) actions.push('等一个交易日后，再重新评估一次');
+  return actions.slice(0, 4);
 }
 
-function generateSummary(input: TradeCardInput): string {
-  const typeLabel = TRADE_TYPE_LABELS[input.type];
-  const emotionLabels = input.emotions.map(e => EMOTION_LABELS[e]).join('、');
+// ---- Main entry ----
 
-  if (input.type === 'buy') {
-    return `你计划${typeLabel} ${input.symbol}，当前情绪状态为${emotionLabels || '平稳'}。${input.thoughts.substring(0, 50)}...`;
-  }
-
-  if (input.type === 'sell') {
-    return `你计划${typeLabel} ${input.symbol}，当前情绪状态为${emotionLabels || '平稳'}。${input.thoughts.substring(0, 50)}...`;
-  }
-
-  if (input.type === 'add') {
-    return `你计划${typeLabel} ${input.symbol}，当前情绪状态为${emotionLabels || '平稳'}。${input.thoughts.substring(0, 50)}...`;
-  }
-
-  if (input.type === 'cut') {
-    return `你计划${typeLabel} ${input.symbol}，当前情绪状态为${emotionLabels || '平稳'}。${input.thoughts.substring(0, 50)}...`;
-  }
-
-  if (input.type === 'missed') {
-    return `你正在复盘${typeLabel}的情况，当前情绪状态为${emotionLabels || '平稳'}。${input.thoughts.substring(0, 50)}...`;
-  }
-
-  if (input.type === 'chase_loss') {
-    return `你正在复盘${typeLabel}的情况，当前情绪状态为${emotionLabels || '平稳'}。${input.thoughts.substring(0, 50)}...`;
-  }
-
-  return `你正在${typeLabel}相关的决策检查。`;
-}
-
-function getCalmStatus(impulseRisk: number): CalmStatus {
-  if (impulseRisk > 65) return 'cool_down';
-  if (impulseRisk >= 40) return 'pause';
-  return 'calm';
-}
-
-function generateEmpathy(input: TradeCardInput, scores: Scores): string {
-  if (scores.impulseRisk > 65) {
-    return '想立刻行动的感觉很正常，但你现在更多是被情绪推着走，而不是看清了局面。';
-  }
-  if (scores.impulseRisk >= 40) {
-    return '这个想法可以理解，先别急——花一分钟看看它是不是经得起推敲。';
-  }
-  return '你现在的状态相对平稳，那就更值得把判断的依据再确认一遍。';
-}
-
-function generateKeyAction(input: TradeCardInput, scores: Scores): string {
-  if (scores.impulseRisk > 65) {
-    return '先放下这笔交易，给自己 24 小时，明天此刻再回来看一次。';
-  }
-  if (scores.positionRisk > 70) {
-    return '把这次操作的仓位先减半，并写下你的退出条件。';
-  }
-  if (scores.reasonQuality < 40) {
-    return '先用一句话写清楚：什么情况下你会承认这次判断错了。';
-  }
-  return '在下单前，先把你的退出条件和最大可接受亏损写下来。';
-}
-
-export function generateDisciplineReport(input: TradeCardInput): TradeReport {
-  const impulseRisk = calculateImpulseRisk(input);
-  const positionRisk = calculatePositionRisk(input);
-  const reasonQuality = calculateReasonQuality(input);
-
+export function generateCalmCard(input: TradeCardInput): CalmCard {
   const scores: Scores = {
-    impulseRisk,
-    positionRisk,
-    reasonQuality,
+    impulseRisk: calculateImpulseRisk(input),
+    positionRisk: calculatePositionRisk(input),
+    reasonQuality: calculateReasonQuality(input),
   };
 
-  const emotionAnalysis = generateEmotionAnalysis(input);
-  const risks = generateRisks(input, scores);
-  const openQuestions = generateOpenQuestions(input);
-  const disciplineSuggestion = generateDisciplineSuggestion(input, scores);
-  const nextActions = generateNextActions(input, scores);
-  const summary = generateSummary(input);
+  const calmStatus = getCalmStatus(input, scores);
 
   return {
     id: crypto.randomUUID(),
-    empathy: generateEmpathy(input, scores),
-    calmStatus: getCalmStatus(impulseRisk),
-    keyAction: generateKeyAction(input, scores),
-    summary,
-    emotionAnalysis,
-    scores,
-    risks,
-    openQuestions,
-    disciplineSuggestion,
-    nextActions,
-    disclaimer:
-      '本报告仅用于投资纪律检查和自我复盘，不构成任何投资建议、买卖建议或收益承诺。所有投资决策应由用户独立判断并自行承担风险。',
+    type: input.type,
+    symbol: input.symbol,
+    userThought: input.thoughts,
+    emotionalOpening: generateEmotionalOpening(input),
+    coreInsight: generateCoreInsight(input, scores),
+    calmStatus,
+    calmStatusText: CALM_STATUS_TEXT[calmStatus],
+    oneAction: generateOneAction(input, scores),
+    selfCheckQuestions: generateSelfCheckQuestions(input),
+    lesson: generateLesson(input),
+    detail: {
+      emotionAnalysis: generateEmotionAnalysis(input),
+      scores,
+      risks: generateRisks(input, scores),
+      nextActions: generateNextActions(input, scores),
+      disclaimer:
+        '本卡片仅用于投资纪律检查和自我复盘，不构成任何投资建议、买卖建议或收益承诺。所有投资决策应由你独立判断并自行承担风险。',
+    },
     createdAt: new Date().toISOString(),
-    input,
   };
 }
 
-/**
- * Convert TradeReport to TradeCardRecord for history list
- */
-export function toTradeCardRecord(report: TradeReport): {
-  id: string;
-  type: string;
-  symbol: string;
-  calmStatus: CalmStatus;
-  impulseRisk: number;
-  positionRisk: number;
-  reasonQuality: number;
-  summary: string;
-  createdAt: string;
-} {
+export { CALM_STATUS_TEXT, SCENE_LABELS, EMOTION_LABELS };
+
+export function toCalmCardRecord(card: CalmCard): CalmCardRecord {
   return {
-    id: report.id,
-    type: report.input.type,
-    symbol: report.input.symbol,
-    calmStatus: report.calmStatus,
-    impulseRisk: report.scores.impulseRisk,
-    positionRisk: report.scores.positionRisk,
-    reasonQuality: report.scores.reasonQuality,
-    summary: report.summary,
-    createdAt: report.createdAt,
+    id: card.id,
+    type: card.type,
+    symbol: card.symbol,
+    coreInsight: card.coreInsight,
+    calmStatus: card.calmStatus,
+    calmStatusText: card.calmStatusText,
+    createdAt: card.createdAt,
   };
 }

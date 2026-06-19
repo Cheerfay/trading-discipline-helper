@@ -1,70 +1,39 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { ArrowLeft, ChevronDown, Trash2 } from 'lucide-react';
-import { getReportById, deleteReport, type TradeType, type CalmStatus } from '@/lib/trading';
+import { getCardById, deleteCard, SCENE_LABELS, type CalmStatus } from '@/lib/trading';
 import { useState, useEffect } from 'react';
 
-const TRADE_TYPE_LABELS: Record<TradeType, string> = {
-  buy: '买入',
-  sell: '卖出',
-  add: '加仓',
-  cut: '割肉',
-  missed: '卖飞复盘',
-  chase_loss: '追高亏损复盘',
-};
-
-const CALM_STATUS_CONFIG: Record<
-  CalmStatus,
-  { label: string; sub: string; ring: string; dot: string; text: string; bg: string }
-> = {
-  calm: {
-    label: '可以理性决策',
-    sub: '你现在的状态相对平稳',
-    ring: 'ring-emerald-100',
-    dot: 'bg-emerald-500',
-    text: 'text-emerald-700',
-    bg: 'bg-emerald-50',
-  },
-  pause: {
-    label: '建议先暂停一下',
-    sub: '先别急，给自己一点思考的空间',
-    ring: 'ring-amber-100',
-    dot: 'bg-amber-500',
-    text: 'text-amber-700',
-    bg: 'bg-amber-50',
-  },
-  cool_down: {
-    label: '强烈建议先冷静',
-    sub: '此刻情绪可能正推着你下单',
-    ring: 'ring-orange-100',
-    dot: 'bg-orange-500',
-    text: 'text-orange-700',
-    bg: 'bg-orange-50',
-  },
+// Status visuals — muted, never alarming. No high-saturation red/green.
+const STATUS_STYLE: Record<CalmStatus, { dot: string; text: string; bg: string }> = {
+  can_think_but_wait: { dot: 'bg-slate-400', text: 'text-slate-600', bg: 'bg-slate-100' },
+  pause_first: { dot: 'bg-amber-500', text: 'text-amber-800', bg: 'bg-[#FFF7ED]' },
+  strong_pause: { dot: 'bg-orange-600', text: 'text-orange-900', bg: 'bg-orange-50' },
+  review_not_trade: { dot: 'bg-slate-500', text: 'text-slate-700', bg: 'bg-stone-100' },
 };
 
 function CardDetailPage() {
   const navigate = useNavigate();
   const { id } = Route.useParams();
-  const [report, setReport] = useState(getReportById(id));
+  const [card, setCard] = useState(getCardById(id));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showFull, setShowFull] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => {
-    setReport(getReportById(id));
+    setCard(getCardById(id));
   }, [id]);
 
-  if (!report) {
+  if (!card) {
     return (
-      <div className="min-h-screen flex flex-col bg-stone-50 text-slate-900">
-        <header className="border-b border-stone-200 bg-white">
-          <div className="max-w-2xl mx-auto px-4 py-4">
-            <h1 className="text-lg font-semibold text-slate-800">报告未找到</h1>
+      <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
+        <header className="px-5 py-4">
+          <div className="max-w-xl mx-auto">
+            <span className="font-medium text-slate-800">没有找到这张卡</span>
           </div>
         </header>
-        <main className="flex-1 max-w-2xl mx-auto px-4 py-12 w-full text-center">
-          <p className="text-slate-600 mb-4">该冷静卡报告不存在或已被删除。</p>
-          <Link to="/" className="text-slate-800 underline">
-            返回首页
+        <main className="flex-1 max-w-xl mx-auto px-5 py-12 w-full text-center">
+          <p className="text-slate-600 mb-4">这张冷静卡不存在或已被删除。</p>
+          <Link to="/" className="text-slate-800 underline underline-offset-4">
+            回到首页
           </Link>
         </main>
       </div>
@@ -72,35 +41,29 @@ function CardDetailPage() {
   }
 
   const handleDelete = () => {
-    deleteReport(id);
+    deleteCard(id);
     navigate({ to: '/history' });
   };
 
-  // Backward compatibility for reports saved before the redesign.
-  const status: CalmStatus =
-    report.calmStatus ??
-    (report.scores.impulseRisk > 65 ? 'cool_down' : report.scores.impulseRisk >= 40 ? 'pause' : 'calm');
-  const statusCfg = CALM_STATUS_CONFIG[status];
-  const empathy = report.empathy || report.summary;
-  const keyAction = report.keyAction || report.disciplineSuggestion;
+  const statusStyle = STATUS_STYLE[card.calmStatus] ?? STATUS_STYLE.pause_first;
 
   return (
-    <div className="min-h-screen flex flex-col bg-stone-50 text-slate-900">
+    <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
       {/* Header */}
-      <header className="border-b border-stone-200 bg-white/80 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link
-            to="/"
-            className="p-2 -ml-2 hover:bg-stone-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-slate-600" />
-          </Link>
-          <span className="text-sm text-slate-400">
-            {TRADE_TYPE_LABELS[report.input.type]} · {report.input.symbol}
-          </span>
+      <header className="px-5 py-4">
+        <div className="max-w-xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link to="/" className="p-2 -ml-2 hover:bg-black/5 rounded-lg transition-colors shrink-0">
+              <ArrowLeft className="w-5 h-5 text-slate-600" />
+            </Link>
+            <div className="min-w-0">
+              <h1 className="font-medium text-slate-800 leading-tight">冷静卡</h1>
+              <p className="text-[12px] text-slate-400 truncate">根据你的输入生成，仅用于自我检查</p>
+            </div>
+          </div>
           <button
             onClick={() => setShowDeleteConfirm(true)}
-            className="p-2 -mr-2 hover:bg-red-50 rounded-lg transition-colors text-slate-400 hover:text-red-600"
+            className="p-2 -mr-2 hover:bg-black/5 rounded-lg transition-colors text-slate-400 hover:text-slate-600 shrink-0"
             title="删除"
           >
             <Trash2 className="w-5 h-5" />
@@ -108,138 +71,149 @@ function CardDetailPage() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-2xl mx-auto px-5 w-full">
-        {/* ===== First screen: calm, minimal ===== */}
-        <div className="min-h-[70vh] flex flex-col justify-center py-12">
-          {/* Status pill */}
-          <div className="flex justify-center mb-8">
-            <div
-              className={`inline-flex items-center gap-2.5 px-4 py-2 rounded-full ring-4 ${statusCfg.ring} ${statusCfg.bg}`}
-            >
-              <span className={`w-2.5 h-2.5 rounded-full ${statusCfg.dot}`} />
-              <span className={`text-sm font-medium ${statusCfg.text}`}>{statusCfg.label}</span>
+      <main className="flex-1 max-w-xl mx-auto px-5 pb-12 w-full">
+        {/* ===== First-screen: one big "先别急" card ===== */}
+        <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgba(15,23,42,0.06)] border border-stone-100 p-6 sm:p-7">
+          {/* Scene + status */}
+          <div className="flex items-center justify-between gap-3 mb-5">
+            <span className="text-[13px] text-slate-400">
+              {SCENE_LABELS[card.type]}
+              {card.symbol ? ` · ${card.symbol}` : ''}
+            </span>
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${statusStyle.bg}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
+              <span className={`text-[12px] font-medium ${statusStyle.text}`}>{card.calmStatusText}</span>
+            </span>
+          </div>
+
+          {/* Card title */}
+          <h2 className="text-[22px] font-semibold text-slate-900 mb-4">先别急</h2>
+
+          {/* Emotional opening */}
+          <p className="text-slate-600 leading-[1.8] text-[15px]">{card.emotionalOpening}</p>
+
+          {/* Core insight */}
+          <div className="mt-6 pt-6 border-t border-stone-100">
+            <p className="text-[13px] text-slate-400 mb-2">这次最需要警惕的是</p>
+            <p className="text-[17px] text-slate-800 leading-relaxed font-medium">{card.coreInsight}</p>
+          </div>
+
+          {/* One action */}
+          <div className="mt-6 p-5 rounded-[18px] bg-[#FAFAF7] border border-stone-100">
+            <p className="text-[13px] text-slate-400 mb-2">现在只做一件事</p>
+            <p className="text-[15px] text-slate-800 leading-[1.8]">{card.oneAction}</p>
+          </div>
+
+          {/* Self-check questions */}
+          {card.selfCheckQuestions.length > 0 && (
+            <div className="mt-6">
+              <p className="text-[13px] text-slate-400 mb-3">如果还想继续操作，先问自己 3 个问题</p>
+              <ol className="space-y-2.5">
+                {card.selfCheckQuestions.map((q, i) => (
+                  <li key={i} className="flex gap-3 text-[15px] text-slate-700 leading-relaxed">
+                    <span className="text-slate-300 font-medium shrink-0">{i + 1}</span>
+                    <span>{q}</span>
+                  </li>
+                ))}
+              </ol>
             </div>
-          </div>
+          )}
 
-          {/* Empathy line — the emotional anchor */}
-          <p className="text-2xl sm:text-3xl font-semibold text-slate-800 text-center leading-relaxed tracking-tight mb-3">
-            {empathy}
-          </p>
-          <p className="text-center text-slate-400 text-sm mb-10">{statusCfg.sub}</p>
-
-          {/* The one key action */}
-          <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
-            <p className="text-xs font-medium text-slate-400 mb-2 tracking-wide">现在，只做这一件事</p>
-            <p className="text-lg text-slate-800 leading-relaxed">{keyAction}</p>
-          </div>
-
-          {/* Expand toggle */}
-          <button
-            onClick={() => setShowFull(!showFull)}
-            className="mt-8 mx-auto flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            {showFull ? '收起完整分析' : '展开完整分析'}
-            <ChevronDown className={`w-4 h-4 transition-transform ${showFull ? 'rotate-180' : ''}`} />
-          </button>
+          {/* Lesson (review scenes only) */}
+          {card.lesson && (
+            <div className="mt-6 pt-6 border-t border-stone-100">
+              <p className="text-[14px] text-slate-500 leading-[1.8] italic">{card.lesson}</p>
+            </div>
+          )}
         </div>
 
-        {/* ===== Full analysis (collapsed by default) ===== */}
-        {showFull && (
-          <div className="space-y-4 pb-12 animate-in fade-in slide-in-from-top-2 duration-300">
-            {/* Summary */}
-            <Section title="当前决策摘要">
-              <p className="text-slate-700 leading-relaxed">{report.summary}</p>
-            </Section>
+        {/* ===== Collapsed detail ===== */}
+        <div className="mt-5">
+          <button
+            onClick={() => setShowDetail(!showDetail)}
+            className="mx-auto flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            展开看看系统怎么判断的
+            <ChevronDown className={`w-4 h-4 transition-transform ${showDetail ? 'rotate-180' : ''}`} />
+          </button>
 
-            {/* Scores */}
-            <Section title="风险评估">
-              <div className="space-y-4">
-                <ScoreBar label="冲动风险" score={report.scores.impulseRisk} isGood={false} />
-                <ScoreBar label="仓位风险" score={report.scores.positionRisk} isGood={false} />
-                <ScoreBar label="决策理由质量" score={report.scores.reasonQuality} isGood={true} />
-              </div>
-            </Section>
-
-            {/* Emotion Analysis */}
-            {report.emotionAnalysis.length > 0 && (
-              <Section title="情绪识别">
-                <div className="space-y-3">
-                  {report.emotionAnalysis.map((item, index) => (
-                    <div key={index} className="p-3 bg-stone-50 rounded-lg">
-                      <p className="font-medium text-slate-800 text-sm">{item.label}</p>
-                      <p className="text-sm text-slate-600 mt-1">{item.explanation}</p>
-                    </div>
-                  ))}
-                </div>
-              </Section>
-            )}
-
-            {/* Risks */}
-            {report.risks.length > 0 && (
-              <Section title="主要风险点">
-                <ul className="space-y-2">
-                  {report.risks.map((risk, index) => (
-                    <li key={index} className="flex items-start gap-2 text-slate-700 text-sm">
-                      <span className="text-amber-500 mt-0.5">•</span>
-                      <span>{risk}</span>
-                    </li>
-                  ))}
-                </ul>
-              </Section>
-            )}
-
-            {/* Open Questions */}
-            {report.openQuestions.length > 0 && (
-              <Section title="你还可以再想想">
-                <ul className="space-y-2">
-                  {report.openQuestions.map((question, index) => (
-                    <li key={index} className="flex items-start gap-2 text-slate-700 text-sm">
-                      <span className="text-slate-400 mt-0.5">·</span>
-                      <span>{question}</span>
-                    </li>
-                  ))}
-                </ul>
-              </Section>
-            )}
-
-            {/* Next Actions */}
-            {report.nextActions.length > 0 && (
-              <Section title="下一步行动清单">
-                <ul className="space-y-2">
-                  {report.nextActions.map((action, index) => (
-                    <li key={index} className="flex items-start gap-3 text-sm">
-                      <div className="w-5 h-5 rounded border-2 border-stone-300 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-xs text-slate-400">{index + 1}</span>
+          {showDetail && (
+            <div className="mt-5 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+              {/* Emotion analysis */}
+              {card.detail.emotionAnalysis.length > 0 && (
+                <DetailSection title="情绪识别">
+                  <div className="space-y-3">
+                    {card.detail.emotionAnalysis.map((item, i) => (
+                      <div key={i}>
+                        <p className="text-[14px] font-medium text-slate-700">{item.label}</p>
+                        <p className="text-[14px] text-slate-500 mt-0.5 leading-relaxed">{item.explanation}</p>
                       </div>
-                      <span className="text-slate-700">{action}</span>
-                    </li>
-                  ))}
-                </ul>
-              </Section>
-            )}
+                    ))}
+                  </div>
+                </DetailSection>
+              )}
 
-            {/* Disclaimer */}
-            <p className="text-xs text-slate-400 leading-relaxed px-1 pt-2">{report.disclaimer}</p>
-          </div>
-        )}
+              {/* Scores — quiet text + thin bars, no big red bars */}
+              <DetailSection title="系统的几个观察">
+                <div className="space-y-3.5">
+                  <QuietBar label="冲动程度" score={card.detail.scores.impulseRisk} higherWorse />
+                  <QuietBar label="仓位风险" score={card.detail.scores.positionRisk} higherWorse />
+                  <QuietBar label="理由完整度" score={card.detail.scores.reasonQuality} higherWorse={false} />
+                </div>
+              </DetailSection>
+
+              {/* Risks */}
+              {card.detail.risks.length > 0 && (
+                <DetailSection title="可以再留意的点">
+                  <ul className="space-y-2">
+                    {card.detail.risks.map((risk, i) => (
+                      <li key={i} className="flex gap-2 text-[14px] text-slate-600 leading-relaxed">
+                        <span className="text-slate-300 mt-0.5">·</span>
+                        <span>{risk}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </DetailSection>
+              )}
+
+              {/* Next actions */}
+              {card.detail.nextActions.length > 0 && (
+                <DetailSection title="如果之后还想做，可以先">
+                  <ul className="space-y-2">
+                    {card.detail.nextActions.map((action, i) => (
+                      <li key={i} className="flex gap-3 text-[14px] text-slate-600 leading-relaxed">
+                        <span className="text-slate-300 shrink-0">{i + 1}</span>
+                        <span>{action}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </DetailSection>
+              )}
+
+              <p className="text-[12px] text-slate-400 leading-relaxed px-1 pt-1">
+                {card.detail.disclaimer}
+              </p>
+            </div>
+          )}
+        </div>
       </main>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete confirm */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
-            <h3 className="text-lg font-semibold text-slate-800 mb-2">确认删除</h3>
-            <p className="text-slate-600 mb-6 text-sm">删除后无法恢复，确定要删除这份冷静卡吗？</p>
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[24px] p-6 max-w-sm w-full shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-800 mb-2">删除这张卡？</h3>
+            <p className="text-slate-500 mb-6 text-sm">删除后无法恢复。</p>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 py-2 px-4 border border-stone-300 rounded-lg text-slate-700 hover:bg-stone-50 transition-colors"
+                className="flex-1 py-2.5 px-4 border border-stone-200 rounded-2xl text-slate-700 hover:bg-stone-50 transition-colors"
               >
                 取消
               </button>
               <button
                 onClick={handleDelete}
-                className="flex-1 py-2 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                className="flex-1 py-2.5 px-4 bg-slate-800 text-white rounded-2xl hover:bg-slate-900 transition-colors"
               >
                 删除
               </button>
@@ -251,28 +225,28 @@ function CardDetailPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="bg-white rounded-2xl border border-stone-200 p-5">
-      <h2 className="text-sm font-medium text-slate-500 mb-3">{title}</h2>
+    <section className="bg-white rounded-[20px] border border-stone-100 p-5">
+      <h3 className="text-[13px] font-medium text-slate-400 mb-3">{title}</h3>
       {children}
     </section>
   );
 }
 
-function ScoreBar({ label, score, isGood }: { label: string; score: number; isGood: boolean }) {
-  const danger = isGood ? score < 50 : score > 50;
-  const warn = isGood ? score >= 50 && score < 70 : score > 30 && score <= 50;
-  const barColor = danger ? 'bg-orange-400' : warn ? 'bg-amber-400' : 'bg-emerald-400';
-
+function QuietBar({ label, score, higherWorse }: { label: string; score: number; higherWorse: boolean }) {
+  // Concerning = high when higherWorse, low otherwise. Use warm amber for
+  // "worth attention", neutral slate otherwise — no green, no bright red.
+  const concerning = higherWorse ? score >= 60 : score <= 40;
+  const barColor = concerning ? 'bg-amber-400' : 'bg-slate-300';
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-sm text-slate-600">{label}</span>
-        <span className="text-sm font-medium text-slate-700">{score}</span>
+        <span className="text-[14px] text-slate-600">{label}</span>
+        <span className="text-[13px] text-slate-400">{score}</span>
       </div>
       <div className="w-full bg-stone-100 rounded-full h-1.5">
-        <div className={`h-1.5 rounded-full transition-all ${barColor}`} style={{ width: `${score}%` }} />
+        <div className={`h-1.5 rounded-full ${barColor}`} style={{ width: `${score}%` }} />
       </div>
     </div>
   );
@@ -281,6 +255,6 @@ function ScoreBar({ label, score, isGood }: { label: string; score: number; isGo
 export const Route = createFileRoute('/card/$id')({
   component: CardDetailPage,
   head: () => ({
-    meta: [{ title: '冷静报告 — 交易冷静卡' }],
+    meta: [{ title: '冷静卡 — 交易冷静卡' }],
   }),
 });
