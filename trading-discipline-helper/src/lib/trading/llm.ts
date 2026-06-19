@@ -26,8 +26,8 @@ export interface LLMConfig {
 // Sensible default models + base URLs per provider (overridable via env).
 const PROVIDER_DEFAULTS: Record<LLMProvider, { model: string; baseURL: string }> = {
   anthropic: { model: 'claude-opus-4-8', baseURL: 'https://api.anthropic.com' },
-  openai: { model: 'gpt-4o', baseURL: 'https://api.openai.com' },
-  gemini: { model: 'gemini-1.5-pro', baseURL: 'https://generativelanguage.googleapis.com' },
+  openai: { model: 'gpt-5.5', baseURL: 'https://api.openai.com' },
+  gemini: { model: 'gemini-2.5-pro', baseURL: 'https://generativelanguage.googleapis.com' },
 };
 
 export function getProviderDefaults(provider: LLMProvider) {
