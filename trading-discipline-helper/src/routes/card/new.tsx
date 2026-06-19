@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
-import { ArrowLeft, Loader2 } from 'lucide-react';
-import { generateDisciplineReport, saveReport, type TradeType, type Emotion, type FocusCheck } from '@/lib/trading';
+import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { saveReport, type TradeType, type Emotion, type FocusCheck, type TradeReport } from '@/lib/trading';
+import { apiPost, ApiError } from '@/lib/api-client';
 
 const TRADE_TYPE_LABELS: Record<TradeType, string> = {
   buy: '买入前冷静卡',
@@ -39,6 +40,7 @@ function CardNewPage() {
   const tradeType = (type || 'buy') as TradeType;
 
   const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Form state
   const [symbol, setSymbol] = useState('');
@@ -92,6 +94,7 @@ function CardNewPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsGenerating(true);
+    setError(null);
 
     // Build extra answers based on type
     const extraAnswers: Record<string, string> = {};
@@ -138,14 +141,19 @@ function CardNewPage() {
       createdAt: new Date().toISOString(),
     };
 
-    // Small delay to show loading state
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    const report = generateDisciplineReport(input);
-    saveReport(report);
-
-    setIsGenerating(false);
-    navigate({ to: '/card/$id', params: { id: report.id } });
+    try {
+      const report: TradeReport = await apiPost('/api/trading/generate-report', input);
+      saveReport(report);
+      setIsGenerating(false);
+      navigate({ to: '/card/$id', params: { id: report.id } });
+    } catch (err) {
+      setIsGenerating(false);
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError('生成报告失败，请稍后重试');
+      }
+    }
   };
 
   return (
@@ -430,6 +438,15 @@ function CardNewPage() {
 
           {/* Submit Button */}
           <div className="pt-6">
+            {error && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-red-800">生成失败</p>
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              </div>
+            )}
             <button
               type="submit"
               disabled={isGenerating || !symbol || !thoughts}

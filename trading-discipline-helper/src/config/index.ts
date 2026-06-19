@@ -75,6 +75,8 @@ export const envConfigs: Record<string, string> = {
   // OPENAI_API_KEY / ANTHROPIC_API_KEY are common ambient vars, and falling back
   // to them would let the admin "Test" silently pass on the machine's own key.
   replicate_api_token: procEnv.REPLICATE_API_TOKEN ?? '',
+  anthropic_api_key: procEnv.ANTHROPIC_API_KEY ?? '',
+  anthropic_base_url: procEnv.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com',
 
   // Locale (public)
   locale: publicEnv('VITE_DEFAULT_LOCALE') ?? 'en',
