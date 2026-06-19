@@ -115,7 +115,10 @@ function CardDetailPage() {
             </Link>
             <div className="min-w-0">
               <h1 className="font-medium text-slate-800 leading-tight">冷静卡</h1>
-              <p className="text-[12px] text-slate-400 truncate">根据你的输入生成，仅用于自我检查</p>
+              <p className="text-[12px] text-slate-400 truncate">
+                {SCENE_LABELS[card.type]}
+                {card.symbol ? ` · ${card.symbol}` : ''}
+              </p>
             </div>
           </div>
           <button
@@ -129,59 +132,32 @@ function CardDetailPage() {
       </header>
 
       <main className="flex-1 max-w-xl mx-auto px-5 pb-12 w-full">
-        {/* ===== First-screen: one big "先别急" card ===== */}
-        <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgba(15,23,42,0.06)] border border-stone-100 p-6 sm:p-7">
-          {/* Scene + status */}
-          <div className="flex items-center justify-between gap-3 mb-5">
-            <span className="text-[13px] text-slate-400">
-              {SCENE_LABELS[card.type]}
-              {card.symbol ? ` · ${card.symbol}` : ''}
-            </span>
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${statusStyle.bg}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
-              <span className={`text-[12px] font-medium ${statusStyle.text}`}>{card.calmStatusText}</span>
-            </span>
-          </div>
+        {/* ===== First-screen: minimal — headline + one action + status ===== */}
+        <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgba(15,23,42,0.06)] border border-stone-100 p-6 sm:p-8">
+          {/* Status badge */}
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${statusStyle.bg}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
+            <span className={`text-[12px] font-medium ${statusStyle.text}`}>{card.calmStatusText}</span>
+          </span>
 
-          {/* Card title */}
-          <h2 className="text-[22px] font-semibold text-slate-900 mb-4">先别急</h2>
+          {/* Title */}
+          <h2 className="text-[22px] font-semibold text-slate-900 mt-5 mb-4">先别急</h2>
 
-          {/* Emotional opening */}
-          <p className="text-slate-600 leading-[1.8] text-[15px]">{card.emotionalOpening}</p>
-
-          {/* Core insight */}
-          <div className="mt-6 pt-6 border-t border-stone-100">
-            <p className="text-[13px] text-slate-400 mb-2">这次最需要警惕的是</p>
-            <p className="text-[17px] text-slate-800 leading-relaxed font-medium">{card.coreInsight}</p>
-          </div>
-
-          {/* One action */}
-          <div className="mt-6 p-5 rounded-[18px] bg-[#FAFAF7] border border-stone-100">
-            <p className="text-[13px] text-slate-400 mb-2">现在只做一件事</p>
-            <p className="text-[15px] text-slate-800 leading-[1.8]">{card.oneAction}</p>
-          </div>
-
-          {/* Self-check questions */}
-          {card.selfCheckQuestions.length > 0 && (
-            <div className="mt-6">
-              <p className="text-[13px] text-slate-400 mb-3">如果还想继续操作，先问自己 3 个问题</p>
-              <ol className="space-y-2.5">
-                {card.selfCheckQuestions.map((q, i) => (
-                  <li key={i} className="flex gap-3 text-[15px] text-slate-700 leading-relaxed">
-                    <span className="text-slate-300 font-medium shrink-0">{i + 1}</span>
-                    <span>{q}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
+          {/* Headline — the single most important thing on the screen */}
+          <p className="text-[18px] sm:text-[19px] text-slate-800 leading-[1.85]">
+            {card.headline || [card.emotionalOpening, card.coreInsight].filter(Boolean).join(' ')}
+          </p>
 
           {/* Lesson (review scenes only) */}
           {card.lesson && (
-            <div className="mt-6 pt-6 border-t border-stone-100">
-              <p className="text-[14px] text-slate-500 leading-[1.8] italic">{card.lesson}</p>
-            </div>
+            <p className="mt-5 text-[14px] text-slate-500 leading-[1.8] italic">{card.lesson}</p>
           )}
+
+          {/* One action */}
+          <div className="mt-7 p-5 rounded-[18px] bg-[#FAFAF7] border border-stone-100">
+            <p className="text-[13px] text-slate-400 mb-2">现在只做一件事</p>
+            <p className="text-[15px] text-slate-800 leading-[1.8]">{card.oneAction}</p>
+          </div>
         </div>
 
         {/* ===== Optional position supplement (shown only when the card
@@ -229,6 +205,20 @@ function CardDetailPage() {
 
           {showDetail && (
             <div className="mt-5 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+              {/* Self-check questions */}
+              {card.selfCheckQuestions.length > 0 && (
+                <DetailSection title="如果还想继续操作，先问自己 3 个问题">
+                  <ol className="space-y-2.5">
+                    {card.selfCheckQuestions.map((q, i) => (
+                      <li key={i} className="flex gap-3 text-[15px] text-slate-700 leading-relaxed">
+                        <span className="text-slate-300 font-medium shrink-0">{i + 1}</span>
+                        <span>{q}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </DetailSection>
+              )}
+
               {/* Emotion analysis */}
               {card.detail.emotionAnalysis.length > 0 && (
                 <DetailSection title="情绪识别">

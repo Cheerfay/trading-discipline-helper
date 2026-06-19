@@ -99,7 +99,7 @@ function HomePage() {
             to="/history"
             className="text-sm text-slate-500 hover:text-slate-800 transition-colors"
           >
-            历史记录
+            我的记录
           </Link>
         </div>
       </header>
@@ -109,14 +109,12 @@ function HomePage() {
         <div className="max-w-xl mx-auto w-full">
           {/* Title */}
           <h1 className="text-[2rem] sm:text-4xl font-semibold text-slate-900 leading-tight tracking-tight">
-            现在很想操作？
+            少犯一次大错，
             <br />
-            先停 30 秒。
+            胜过小赚几次。
           </h1>
           <p className="mt-4 text-slate-500 leading-relaxed">
-            我不会告诉你买什么、卖什么。
-            <br />
-            只帮你分清：这是计划，还是情绪。
+            出手前，先过一遍：理由、仓位、情绪。
           </p>
 
           {/* Main input */}
@@ -173,16 +171,18 @@ function HomePage() {
             {isGenerating ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                正在生成冷静卡…
+                正在帮你看…
               </>
             ) : (
-              '生成冷静卡'
+              '先别急，看一眼'
             )}
           </button>
 
           {/* Footer note */}
           <p className="mt-6 text-[13px] text-slate-400 text-center leading-relaxed">
             仅用于投资纪律检查与自我复盘，不构成投资建议。
+            <br />
+            记录只保存在当前设备的浏览器里。
           </p>
         </div>
       </main>
@@ -194,10 +194,10 @@ export const Route = createFileRoute('/')({
   component: HomePage,
   head: () => ({
     meta: [
-      { title: '交易冷静卡 — 先停 30 秒' },
+      { title: '交易冷静卡 — 少犯一次大错，胜过小赚几次' },
       {
         name: 'description',
-        content: '一个在交易上头时帮你先停下来的工具。不预测涨跌，不给买卖建议，只帮你分清这是计划，还是情绪。',
+        content: '出手前，先过一遍：理由、仓位、情绪。一个帮你守住交易纪律的工具，不预测涨跌，不给买卖建议，只帮你看清这笔操作站不站得住。',
       },
     ],
   }),

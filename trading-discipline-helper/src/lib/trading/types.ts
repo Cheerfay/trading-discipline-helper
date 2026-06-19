@@ -75,8 +75,10 @@ export interface CalmCard {
   symbol: string;
   userThought: string;
   // First-screen layer (generation priority order)
-  emotionalOpening: string; // 情绪安抚段（2-3句）
-  coreInsight: string; // 一句话核心判断
+  // headline: 合并"安抚 + 核心判断"的一个自然段（2-4句），首屏主角。
+  headline: string;
+  emotionalOpening: string; // 情绪安抚段（保留：下沉到第二层备用）
+  coreInsight: string; // 一句话核心判断（保留：下沉/历史列表用）
   calmStatus: CalmStatus;
   calmStatusText: string; // 状态 badge 文案
   oneAction: string; // 一个冷静动作

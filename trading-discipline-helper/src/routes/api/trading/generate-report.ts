@@ -88,7 +88,7 @@ const generateCardFn = createServerFn()
         return respErr('Failed to parse AI response');
       }
 
-      if (!parsed.emotionalOpening || !parsed.coreInsight) {
+      if (!parsed.headline && !parsed.emotionalOpening && !parsed.coreInsight) {
         console.error('Invalid response structure:', parsed);
         return respErr('Invalid AI response structure');
       }
@@ -108,8 +108,13 @@ const generateCardFn = createServerFn()
         type: data.type,
         symbol: data.symbol,
         userThought: data.thoughts,
-        emotionalOpening: parsed.emotionalOpening,
-        coreInsight: parsed.coreInsight,
+        // headline is the first-screen lead; fall back to joining the two
+        // supporting fields if the model didn't produce it.
+        headline:
+          parsed.headline ||
+          [parsed.emotionalOpening, parsed.coreInsight].filter(Boolean).join(' '),
+        emotionalOpening: parsed.emotionalOpening || '',
+        coreInsight: parsed.coreInsight || '',
         calmStatus,
         calmStatusText: STATUS_TEXT[calmStatus],
         oneAction: parsed.oneAction || '先离开行情页面 30 分钟，回来后如果还想操作，再写下一个具体理由。',
@@ -117,10 +122,13 @@ const generateCardFn = createServerFn()
           ? parsed.selfCheckQuestions.slice(0, 3)
           : [],
         lesson: parsed.lesson || '',
-        // Trust the model's flag, but only when the user truly gave no position
-        // info — never re-ask if they already told us.
+        // Trust the model's flag, but hard-guard it: only buy/sell/add/cut
+        // scenes ask for position, and only when the user gave none.
         needsPositionInfo:
-          parsed.needsPositionInfo === true && !data.currentPositionRatio && !data.plannedAmount,
+          parsed.needsPositionInfo === true &&
+          ['buy', 'sell', 'add', 'cut'].includes(data.type) &&
+          !data.currentPositionRatio &&
+          !data.plannedAmount,
         detail: {
           emotionAnalysis: Array.isArray(parsed.detail?.emotionAnalysis)
             ? parsed.detail.emotionAnalysis

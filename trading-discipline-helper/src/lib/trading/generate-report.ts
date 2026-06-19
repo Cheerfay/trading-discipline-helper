@@ -294,14 +294,18 @@ export function generateCalmCard(input: TradeCardInput): CalmCard {
   };
 
   const calmStatus = getCalmStatus(input, scores);
+  const emotionalOpening = generateEmotionalOpening(input);
+  const coreInsight = generateCoreInsight(input, scores);
 
   return {
     id: crypto.randomUUID(),
     type: input.type,
     symbol: input.symbol,
     userThought: input.thoughts,
-    emotionalOpening: generateEmotionalOpening(input),
-    coreInsight: generateCoreInsight(input, scores),
+    // Mock headline = opening + insight flowed into one paragraph.
+    headline: `${emotionalOpening} ${coreInsight}`,
+    emotionalOpening,
+    coreInsight,
     calmStatus,
     calmStatusText: CALM_STATUS_TEXT[calmStatus],
     oneAction: generateOneAction(input, scores),
