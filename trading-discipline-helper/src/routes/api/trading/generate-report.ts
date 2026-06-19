@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { createServerFn } from '@tanstack/react-start';
 import { respData, respErr } from '@/lib/resp';
-import { envConfigs } from '@/config';
 import { buildPrompt, CALM_CARD_SYSTEM_PROMPT } from '@/lib/trading/claude-api';
-import { callLLM, getProviderDefaults, type LLMProvider, type LLMConfig } from '@/lib/trading/llm';
+import { callLLM } from '@/lib/trading/llm';
+import { resolveLLMConfig } from '@/lib/trading/llm-config';
 import type { TradeCardInput, CalmCard, CalmStatus } from '@/lib/trading/types';
 
 const VALID_STATUSES: CalmStatus[] = [
@@ -19,41 +19,6 @@ const STATUS_TEXT: Record<CalmStatus, string> = {
   strong_pause: '强烈建议先冷静',
   review_not_trade: '更适合复盘，不适合立刻交易',
 };
-
-/**
- * Resolve the active LLM provider config from env. Returns null + an error
- * message when the selected provider's API key is missing.
- */
-function resolveLLMConfig(): { config?: LLMConfig; error?: string } {
-  const provider = (envConfigs.llm_provider || 'anthropic') as LLMProvider;
-  const defaults = getProviderDefaults(provider);
-  if (!defaults) return { error: `Unknown LLM_PROVIDER: ${provider}` };
-
-  const keyMap: Record<LLMProvider, string> = {
-    anthropic: envConfigs.anthropic_api_key,
-    openai: envConfigs.openai_api_key,
-    gemini: envConfigs.gemini_api_key,
-  };
-  const baseURLMap: Record<LLMProvider, string> = {
-    anthropic: envConfigs.anthropic_base_url,
-    openai: envConfigs.openai_base_url,
-    gemini: envConfigs.gemini_base_url,
-  };
-
-  const apiKey = keyMap[provider];
-  if (!apiKey) {
-    return { error: `${provider} API key not configured (set the matching *_API_KEY env var)` };
-  }
-
-  return {
-    config: {
-      provider,
-      apiKey,
-      model: envConfigs.llm_model || defaults.model,
-      baseURL: baseURLMap[provider] || defaults.baseURL,
-    },
-  };
-}
 
 function deriveStatus(input: TradeCardInput, scores: any): CalmStatus {
   const impulse = scores?.impulseRisk ?? 50;
@@ -122,13 +87,16 @@ const generateCardFn = createServerFn()
           ? parsed.selfCheckQuestions.slice(0, 3)
           : [],
         lesson: parsed.lesson || '',
-        // Trust the model's flag, but hard-guard it: only buy/sell/add/cut
-        // scenes ask for position, and only when the user gave none.
+        // Trust the model's semantic judgment, but do not ask again after the
+        // user has explicitly supplied position fields in this request.
         needsPositionInfo:
           parsed.needsPositionInfo === true &&
-          ['buy', 'sell', 'add', 'cut'].includes(data.type) &&
           !data.currentPositionRatio &&
           !data.plannedAmount,
+        positionInfoReason:
+          parsed.needsPositionInfo === true && typeof parsed.positionInfoReason === 'string'
+            ? parsed.positionInfoReason
+            : '',
         detail: {
           emotionAnalysis: Array.isArray(parsed.detail?.emotionAnalysis)
             ? parsed.detail.emotionAnalysis

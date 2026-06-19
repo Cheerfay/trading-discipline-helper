@@ -114,7 +114,7 @@ function HomePage() {
             胜过小赚几次。
           </h1>
           <p className="mt-4 text-slate-500 leading-relaxed">
-            出手前，先过一遍：理由、仓位、情绪。
+            给冲动交易踩一脚刹车。
           </p>
 
           {/* Main input */}

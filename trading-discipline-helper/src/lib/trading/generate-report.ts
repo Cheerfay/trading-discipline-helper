@@ -316,6 +316,7 @@ export function generateCalmCard(input: TradeCardInput): CalmCard {
     needsPositionInfo:
       !input.currentPositionRatio &&
       (input.type === 'buy' || input.type === 'add' || input.type === 'sell' || input.type === 'cut'),
+    positionInfoReason: '如果补充当前仓位和这次打算动多少，这张卡对仓位节奏的判断会更贴近你的情况。',
     detail: {
       emotionAnalysis: generateEmotionAnalysis(input),
       scores,

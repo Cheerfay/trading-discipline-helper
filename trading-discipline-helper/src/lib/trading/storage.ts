@@ -2,7 +2,7 @@
  * LocalStorage utilities for Calm Cards
  */
 
-import type { CalmCard, CalmCardRecord } from './types';
+import type { CalmCard, CalmCardRecord, PositionCard } from './types';
 import { toCalmCardRecord } from './generate-report';
 
 const STORAGE_KEY = 'trading_discipline_cards';
@@ -47,4 +47,13 @@ export function updateCard(id: string, next: CalmCard): void {
   if (typeof window === 'undefined') return;
   const cards = getCards().map(c => (c.id === id ? next : c));
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+}
+
+export function attachPositionCard(id: string, positionCard: PositionCard): CalmCard | null {
+  if (typeof window === 'undefined') return null;
+  const current = getCardById(id);
+  if (!current) return null;
+  const next = { ...current, positionCard };
+  updateCard(id, next);
+  return next;
 }

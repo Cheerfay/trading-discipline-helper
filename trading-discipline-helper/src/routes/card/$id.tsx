@@ -4,12 +4,15 @@ import {
   getCardById,
   deleteCard,
   updateCard,
+  attachPositionCard,
   SCENE_LABELS,
   type CalmStatus,
   type CalmCard,
+  type PositionCard,
+  type PositionHealthStatus,
 } from '@/lib/trading';
 import { apiPost, ApiError } from '@/lib/api-client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // Status visuals — muted, never alarming. No high-saturation red/green.
 const STATUS_STYLE: Record<CalmStatus, { dot: string; text: string; bg: string }> = {
@@ -19,20 +22,42 @@ const STATUS_STYLE: Record<CalmStatus, { dot: string; text: string; bg: string }
   review_not_trade: { dot: 'bg-slate-500', text: 'text-slate-700', bg: 'bg-stone-100' },
 };
 
+const POSITION_STATUS_STYLE: Record<PositionHealthStatus, { dot: string; text: string; bg: string }> = {
+  looks_balanced: { dot: 'bg-slate-400', text: 'text-slate-600', bg: 'bg-slate-100' },
+  worth_attention: { dot: 'bg-amber-500', text: 'text-amber-800', bg: 'bg-[#FFF7ED]' },
+  too_concentrated: { dot: 'bg-orange-600', text: 'text-orange-900', bg: 'bg-orange-50' },
+  not_enough_info: { dot: 'bg-slate-500', text: 'text-slate-700', bg: 'bg-stone-100' },
+};
+
 function CardDetailPage() {
   const navigate = useNavigate();
   const { id } = Route.useParams();
   const [card, setCard] = useState(getCardById(id));
+  const positionSectionRef = useRef<HTMLDivElement>(null);
+  const shouldScrollToPositionRef = useRef(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   // Optional position-info supplement
   const [positionInput, setPositionInput] = useState('');
   const [refining, setRefining] = useState(false);
   const [refineError, setRefineError] = useState<string | null>(null);
+  // Position health card
+  const [showPositionBuilder, setShowPositionBuilder] = useState(false);
+  const [positionHealthInput, setPositionHealthInput] = useState('');
+  const [generatingPosition, setGeneratingPosition] = useState(false);
+  const [positionError, setPositionError] = useState<string | null>(null);
 
   useEffect(() => {
     setCard(getCardById(id));
   }, [id]);
+
+  useEffect(() => {
+    if (!card?.positionCard || !shouldScrollToPositionRef.current) return;
+    shouldScrollToPositionRef.current = false;
+    requestAnimationFrame(() => {
+      positionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [card?.positionCard?.id]);
 
   if (!card) {
     return (
@@ -92,17 +117,49 @@ function CardDetailPage() {
     }
   };
 
+  const handleGeneratePositionCard = async () => {
+    if (!card || !positionHealthInput.trim()) return;
+    setGeneratingPosition(true);
+    setPositionError(null);
+
+    const input = {
+      sourceCardId: card.id,
+      scene: card.type,
+      symbol: card.symbol,
+      userThought: card.userThought,
+      positionText: positionHealthInput.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      const positionCard: PositionCard = await apiPost('/api/trading/generate-position-card', input);
+      const next = attachPositionCard(card.id, positionCard);
+      shouldScrollToPositionRef.current = true;
+      if (next) setCard(next);
+      setGeneratingPosition(false);
+      setShowPositionBuilder(false);
+      setPositionHealthInput('');
+    } catch (err) {
+      setGeneratingPosition(false);
+      setPositionError(err instanceof ApiError ? err.message : '生成失败，请稍后重试');
+    }
+  };
+
   const statusStyle = STATUS_STYLE[card.calmStatus] ?? STATUS_STYLE.pause_first;
 
   // Scene-aware supplement copy + placeholder. "Buy/add" users may be flat or
   // lightly held, so don't presume they hold it; "sell/cut" users do hold it.
   const buyLike = card.type === 'buy' || card.type === 'add';
-  const positionPrompt = buyLike
-    ? '想让我看得更准一点？用一句话说说你的仓位情况——比如目前空仓、或这只已经占了多少，这次大概想动多少。'
-    : '想让我看得更准一点？用一句话告诉我：这只现在占你多少，这次大概想动多少。';
+  const positionPrompt = card.positionInfoReason
+    ? `这张卡还缺一个关键背景：${card.positionInfoReason}。补一句后，我会重新看这次操作本身。`
+    : buyLike
+      ? '这张卡还缺一个关键背景：仓位。用一句话说说目前空仓、或这只已经占了多少，这次大概想动多少；补完后我会重新看这次操作本身。'
+      : '这张卡还缺一个关键背景：仓位。用一句话告诉我这只现在占你多少、这次大概想动多少；补完后我会重新看这次操作本身。';
   const positionPlaceholder = buyLike
     ? '例如：目前空仓，想先买 10 万试试'
     : '例如：现在占 20%，这次想卖一半';
+  const positionHealthPlaceholder =
+    '例如：我有茅台 30%、宁德 20%，剩下主要是现金；或者：这只现在占 25%，还想再加一点';
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
@@ -158,10 +215,16 @@ function CardDetailPage() {
             <p className="text-[13px] text-slate-400 mb-2">现在只做一件事</p>
             <p className="text-[15px] text-slate-800 leading-[1.8]">{card.oneAction}</p>
           </div>
+
+          <CalmCardDetail
+            card={card}
+            showDetail={showDetail}
+            onToggle={() => setShowDetail(!showDetail)}
+          />
         </div>
 
-        {/* ===== Optional position supplement (shown only when the card
-             would be more accurate with position info) ===== */}
+        {/* ===== Optional position supplement (shown when the main card would
+             be more accurate with position info) ===== */}
         {card.needsPositionInfo && (
           <div className="mt-4 p-5 rounded-[20px] bg-[#FAFAF7] border border-stone-200/70">
             <p className="text-[14px] text-slate-600 leading-relaxed mb-3">
@@ -187,92 +250,69 @@ function CardDetailPage() {
                   正在重新看…
                 </>
               ) : (
-                '让卡片更准一点'
+                '补充后重看这张卡'
               )}
             </button>
           </div>
         )}
 
-        {/* ===== Collapsed detail ===== */}
-        <div className="mt-5">
-          <button
-            onClick={() => setShowDetail(!showDetail)}
-            className="mx-auto flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            展开看看系统怎么判断的
-            <ChevronDown className={`w-4 h-4 transition-transform ${showDetail ? 'rotate-180' : ''}`} />
-          </button>
-
-          {showDetail && (
-            <div className="mt-5 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
-              {/* Self-check questions */}
-              {card.selfCheckQuestions.length > 0 && (
-                <DetailSection title="如果还想继续操作，先问自己 3 个问题">
-                  <ol className="space-y-2.5">
-                    {card.selfCheckQuestions.map((q, i) => (
-                      <li key={i} className="flex gap-3 text-[15px] text-slate-700 leading-relaxed">
-                        <span className="text-slate-300 font-medium shrink-0">{i + 1}</span>
-                        <span>{q}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </DetailSection>
-              )}
-
-              {/* Emotion analysis */}
-              {card.detail.emotionAnalysis.length > 0 && (
-                <DetailSection title="情绪识别">
-                  <div className="space-y-3">
-                    {card.detail.emotionAnalysis.map((item, i) => (
-                      <div key={i}>
-                        <p className="text-[14px] font-medium text-slate-700">{item.label}</p>
-                        <p className="text-[14px] text-slate-500 mt-0.5 leading-relaxed">{item.explanation}</p>
-                      </div>
-                    ))}
-                  </div>
-                </DetailSection>
-              )}
-
-              {/* Scores — quiet text + thin bars, no big red bars */}
-              <DetailSection title="系统的几个观察">
-                <div className="space-y-3.5">
-                  <QuietBar label="冲动程度" score={card.detail.scores.impulseRisk} higherWorse />
-                  <QuietBar label="仓位风险" score={card.detail.scores.positionRisk} higherWorse />
-                  <QuietBar label="理由完整度" score={card.detail.scores.reasonQuality} higherWorse={false} />
+        {/* ===== Position health card: the deeper second-layer check ===== */}
+        <div ref={positionSectionRef} className="mt-4 scroll-mt-4">
+          {card.positionCard ? (
+            <PositionCardView positionCard={card.positionCard} />
+          ) : (
+            <div className="p-5 rounded-[20px] bg-white/70 border border-stone-200/70">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[14px] font-medium text-slate-700">再深入一层</p>
+                  <p className="mt-1 text-[14px] text-slate-500 leading-relaxed">
+                    {card.needsPositionInfo
+                      ? '也可以先不重看主卡，直接看看仓位节奏。可以写整体持仓，也可以写这次打算动多少。'
+                      : '看看仓位节奏稳不稳。可以写整体持仓，也可以写这次打算动多少；只查纪律和集中度。'}
+                  </p>
                 </div>
-              </DetailSection>
+                <button
+                  type="button"
+                  onClick={() => setShowPositionBuilder(!showPositionBuilder)}
+                  className="shrink-0 px-3 py-1.5 rounded-full bg-slate-800 text-white text-[13px] hover:bg-slate-900 transition-colors"
+                >
+                  看看仓位节奏
+                </button>
+              </div>
 
-              {/* Risks */}
-              {card.detail.risks.length > 0 && (
-                <DetailSection title="可以再留意的点">
-                  <ul className="space-y-2">
-                    {card.detail.risks.map((risk, i) => (
-                      <li key={i} className="flex gap-2 text-[14px] text-slate-600 leading-relaxed">
-                        <span className="text-slate-300 mt-0.5">·</span>
-                        <span>{risk}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </DetailSection>
+              {showPositionBuilder && (
+                <div className="mt-4">
+                  <textarea
+                    value={positionHealthInput}
+                    onChange={(e) => {
+                      setPositionHealthInput(e.target.value);
+                      if (positionError) setPositionError(null);
+                    }}
+                    placeholder={positionHealthPlaceholder}
+                    rows={4}
+                    disabled={generatingPosition}
+                    className="w-full px-4 py-3 rounded-[16px] bg-white border border-stone-200/80 focus:border-slate-300 outline-none transition-colors resize-none text-[15px] leading-relaxed placeholder:text-slate-400 disabled:opacity-60"
+                  />
+                  <p className="mt-2 text-[12px] text-slate-400">
+                    能写比例最好；只写大概结构也可以。
+                  </p>
+                  {positionError && <p className="mt-2 text-[13px] text-amber-700">{positionError}</p>}
+                  <button
+                    onClick={handleGeneratePositionCard}
+                    disabled={generatingPosition || !positionHealthInput.trim()}
+                    className="mt-3 w-full py-2.5 rounded-2xl bg-slate-800 text-white text-[15px] font-medium hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  >
+                    {generatingPosition ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        正在看仓位节奏…
+                      </>
+                    ) : (
+                      '帮我看看仓位安排'
+                    )}
+                  </button>
+                </div>
               )}
-
-              {/* Next actions */}
-              {card.detail.nextActions.length > 0 && (
-                <DetailSection title="如果之后还想做，可以先">
-                  <ul className="space-y-2">
-                    {card.detail.nextActions.map((action, i) => (
-                      <li key={i} className="flex gap-3 text-[14px] text-slate-600 leading-relaxed">
-                        <span className="text-slate-300 shrink-0">{i + 1}</span>
-                        <span>{action}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </DetailSection>
-              )}
-
-              <p className="text-[12px] text-slate-400 leading-relaxed px-1 pt-1">
-                {card.detail.disclaimer}
-              </p>
             </div>
           )}
         </div>
@@ -313,6 +353,183 @@ function DetailSection({ title, children }: { title: string; children: React.Rea
     </section>
   );
 }
+
+function CalmCardDetail({
+  card,
+  showDetail,
+  onToggle,
+}: {
+  card: CalmCard;
+  showDetail: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="mt-6 border-t border-stone-100 pt-5">
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors"
+      >
+        展开冷静卡判断
+        <ChevronDown className={`w-4 h-4 transition-transform ${showDetail ? 'rotate-180' : ''}`} />
+      </button>
+
+      {showDetail && (
+        <div className="mt-5 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+          {card.selfCheckQuestions.length > 0 && (
+            <DetailSection title="如果还想继续操作，先问自己 3 个问题">
+              <ol className="space-y-2.5">
+                {card.selfCheckQuestions.map((q, i) => (
+                  <li key={i} className="flex gap-3 text-[15px] text-slate-700 leading-relaxed">
+                    <span className="text-slate-300 font-medium shrink-0">{i + 1}</span>
+                    <span>{q}</span>
+                  </li>
+                ))}
+              </ol>
+            </DetailSection>
+          )}
+
+          {card.detail.emotionAnalysis.length > 0 && (
+            <DetailSection title="情绪识别">
+              <div className="space-y-3">
+                {card.detail.emotionAnalysis.map((item, i) => (
+                  <div key={i}>
+                    <p className="text-[14px] font-medium text-slate-700">{item.label}</p>
+                    <p className="text-[14px] text-slate-500 mt-0.5 leading-relaxed">{item.explanation}</p>
+                  </div>
+                ))}
+              </div>
+            </DetailSection>
+          )}
+
+          <DetailSection title="系统的几个观察">
+            <div className="space-y-3.5">
+              <QuietBar label="冲动程度" score={card.detail.scores.impulseRisk} higherWorse />
+              <QuietBar label="仓位风险" score={card.detail.scores.positionRisk} higherWorse />
+              <QuietBar label="理由完整度" score={card.detail.scores.reasonQuality} higherWorse={false} />
+            </div>
+          </DetailSection>
+
+          {card.detail.risks.length > 0 && (
+            <DetailSection title="可以再留意的点">
+              <ul className="space-y-2">
+                {card.detail.risks.map((risk, i) => (
+                  <li key={i} className="flex gap-2 text-[14px] text-slate-600 leading-relaxed">
+                    <span className="text-slate-300 mt-0.5">·</span>
+                    <span>{risk}</span>
+                  </li>
+                ))}
+              </ul>
+            </DetailSection>
+          )}
+
+          {card.detail.nextActions.length > 0 && (
+            <DetailSection title="如果之后还想做，可以先">
+              <ul className="space-y-2">
+                {card.detail.nextActions.map((action, i) => (
+                  <li key={i} className="flex gap-3 text-[14px] text-slate-600 leading-relaxed">
+                    <span className="text-slate-300 shrink-0">{i + 1}</span>
+                    <span>{action}</span>
+                  </li>
+                ))}
+              </ul>
+            </DetailSection>
+          )}
+
+          <p className="text-[12px] text-slate-400 leading-relaxed px-1 pt-1">
+            {card.detail.disclaimer}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PositionCardView({ positionCard }: { positionCard: PositionCard }) {
+  const [showDetail, setShowDetail] = useState(false);
+  const statusStyle =
+    POSITION_STATUS_STYLE[positionCard.status] ?? POSITION_STATUS_STYLE.worth_attention;
+
+  return (
+    <section className="bg-white rounded-[24px] shadow-[0_8px_30px_rgba(15,23,42,0.05)] border border-stone-100 p-6">
+      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${statusStyle.bg}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
+        <span className={`text-[12px] font-medium ${statusStyle.text}`}>
+          {positionCard.statusText}
+        </span>
+      </span>
+
+      <h2 className="text-[19px] font-semibold text-slate-900 mt-5 mb-3">仓位节奏卡</h2>
+      <p className="text-[16px] text-slate-800 leading-[1.85]">{positionCard.headline}</p>
+
+      <div className="mt-5 p-4 rounded-[18px] bg-[#FAFAF7] border border-stone-100">
+        <p className="text-[13px] text-slate-400 mb-2">先看节奏</p>
+        <p className="text-[15px] text-slate-800 leading-[1.8]">{positionCard.rhythmInsight}</p>
+      </div>
+
+      <div className="mt-4 p-4 rounded-[18px] bg-[#FAFAF7] border border-stone-100">
+        <p className="text-[13px] text-slate-400 mb-2">现在只做一件事</p>
+        <p className="text-[15px] text-slate-800 leading-[1.8]">{positionCard.oneAction}</p>
+      </div>
+
+      {positionCard.checkpoints.length > 0 && (
+        <div className="mt-5">
+          <p className="text-[13px] font-medium text-slate-400 mb-3">再问自己 3 个问题</p>
+          <ol className="space-y-2.5">
+            {positionCard.checkpoints.map((q, i) => (
+              <li key={i} className="flex gap-3 text-[14px] text-slate-600 leading-relaxed">
+                <span className="text-slate-300 font-medium shrink-0">{i + 1}</span>
+                <span>{q}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      <button
+        onClick={() => setShowDetail(!showDetail)}
+        className="mt-5 flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors"
+      >
+        展开仓位观察分析
+        <ChevronDown className={`w-4 h-4 transition-transform ${showDetail ? 'rotate-180' : ''}`} />
+      </button>
+
+      {showDetail && (
+        <div className="mt-4 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+          {positionCard.detail.findings.map((finding, i) => (
+            <div key={i} className="rounded-[16px] border border-stone-100 bg-[#FAFAF7] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[14px] font-medium text-slate-700">{finding.title}</p>
+                <span className="text-[12px] text-slate-400">{POSITION_LEVEL_LABELS[finding.level]}</span>
+              </div>
+              <p className="mt-2 text-[14px] text-slate-500 leading-relaxed">{finding.detail}</p>
+            </div>
+          ))}
+          {positionCard.detail.notes.length > 0 && (
+            <ul className="space-y-2 px-1">
+              {positionCard.detail.notes.map((note, i) => (
+                <li key={i} className="flex gap-2 text-[13px] text-slate-500 leading-relaxed">
+                  <span className="text-slate-300">·</span>
+                  <span>{note}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-[12px] text-slate-400 leading-relaxed px-1">
+            {positionCard.detail.disclaimer}
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+const POSITION_LEVEL_LABELS = {
+  light: '偏轻',
+  balanced: '合理',
+  watch: '偏重',
+  concentrated: '集中',
+  unknown: '待补充',
+};
 
 function QuietBar({ label, score, higherWorse }: { label: string; score: number; higherWorse: boolean }) {
   // Concerning = high when higherWorse, low otherwise. Use warm amber for

@@ -87,8 +87,10 @@ export interface CalmCard {
   // True when the model judged this card would be more accurate with position
   // info the user hasn't given yet. Drives the optional supplement invite.
   needsPositionInfo: boolean;
+  positionInfoReason: string;
   // Collapsed detail layer
   detail: TradeReport;
+  positionCard?: PositionCard;
   createdAt: string;
 }
 
@@ -100,5 +102,63 @@ export interface CalmCardRecord {
   coreInsight: string;
   calmStatus: CalmStatus;
   calmStatusText: string;
+  createdAt: string;
+}
+
+export type PositionHealthStatus =
+  | 'looks_balanced'
+  | 'worth_attention'
+  | 'too_concentrated'
+  | 'not_enough_info';
+
+export type PositionRiskLevel = 'light' | 'balanced' | 'watch' | 'concentrated' | 'unknown';
+
+export interface PositionParsedRatio {
+  value: number;
+  source: string;
+}
+
+export interface PositionRuleFinding {
+  kind: 'single_position' | 'all_in' | 'theme_concentration' | 'cash_buffer' | 'missing_info';
+  level: PositionRiskLevel;
+  title: string;
+  detail: string;
+}
+
+export interface PositionRuleSummary {
+  primaryLevel: PositionRiskLevel;
+  primaryLabel: string;
+  maxSingleRatio: number | null;
+  parsedRatios: PositionParsedRatio[];
+  detectedThemes: string[];
+  findings: PositionRuleFinding[];
+  missingInfo: string[];
+}
+
+export interface PositionCardInput {
+  sourceCardId?: string;
+  scene: Scene;
+  symbol: string;
+  userThought: string;
+  positionText: string;
+  createdAt: string;
+}
+
+export interface PositionCard {
+  id: string;
+  sourceCardId?: string;
+  status: PositionHealthStatus;
+  statusText: string;
+  positionText: string;
+  headline: string;
+  rhythmInsight: string;
+  oneAction: string;
+  checkpoints: string[];
+  ruleSummary: PositionRuleSummary;
+  detail: {
+    findings: PositionRuleFinding[];
+    notes: string[];
+    disclaimer: string;
+  };
   createdAt: string;
 }

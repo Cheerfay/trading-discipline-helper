@@ -169,7 +169,8 @@ export function buildPrompt(input: any): ClaudeMessage[] {
   "oneAction": "一个最关键、最具体、现在就能做的冷静动作。只给一个，不要列一堆。例如：'先等一个完整交易日，明天同一时间重新写一次买入理由，如果仍然成立再评估。'。涉及仓位时只能给通用纪律，不要针对这只票给具体仓位数字。",
   "selfCheckQuestions": ["3个自查问题，每个一句话，简短。引导用户分清情绪和计划。"],
   "lesson": "仅当场景是'卖飞了'或'追高亏了'这类复盘场景时，给一句可以带走、可复用的决策原则；其他场景留空字符串。只讲原则，不给价格触发点或买卖时机阈值（例如可以说'想追回前，先分清是有了和后悔无关的新理由，还是只是不甘心；只有写得出新理由时才考虑，并且永远用很小的仓位'；绝不能说'突破某价位/涨跌某百分比就可以追'这类择时规则）。",
-  "needsPositionInfo": "布尔值。如果用户没有提供仓位信息（这只占多少、这次想动多少），而这又是买入/卖出/加仓/割肉这类仓位会影响判断的场景，填 true，表示如果用户愿意补充仓位，卡片能更准；否则 false。",
+  "needsPositionInfo": "布尔值。只有当'缺少仓位信息会显著影响这张冷静卡对当前操作本身的判断'时才填 true；不要因为仓位信息通常有帮助就填 true。适合 true 的情况：用户核心问题围绕持仓/仓位/补仓/加减仓/清仓/满仓/重仓/轻仓/摊低成本，或用户描述的是已有仓位上的动作，但没有说当前持仓和这次打算动多少。普通想买/想卖、主要是情绪或理由问题时，即使没有仓位也填 false。",
+  "positionInfoReason": "当 needsPositionInfo 为 true 时，用一句话说明为什么缺仓位会影响这张主卡，例如'你说想补仓摊低成本，但没有说当前持仓和这次打算动多少'。当 needsPositionInfo 为 false 时留空字符串。",
   "detail": {
     "emotionAnalysis": [{ "label": "情绪/偏差名称", "explanation": "一句温和的解释，尽量结合他这次的具体情境" }],
     "scores": {
@@ -188,6 +189,7 @@ export function buildPrompt(input: any): ClaudeMessage[] {
 - 守住合规红线：可以复述用户提到的标的和价格，但不评价这只票好坏、不预测涨跌、不给买卖建议、不给针对这只票的具体仓位数字、不给"突破某价位/涨跌某百分比就买卖"这类择时阈值；涉及仓位只给通用纪律。
 - calmStatus 与评分大致对应：impulseRisk≥80 或 reasonQuality≤30 → strong_pause；impulseRisk≥60 → pause_first；复盘场景（卖飞/追高）优先 review_not_trade。
 - 信息不足时，positionRisk 可以给一个保守的中性估计，不要因此降低整张卡的价值。
+- needsPositionInfo 要克制使用：它是为了决定是否让用户补充仓位后'重新生成这张冷静卡'，不是功能二的仓位健康检查入口。只有缺仓位会让主卡明显失准时才 true；并写清 positionInfoReason。
 - detail 里的内容是默认折叠的，可以稍详细，但 risks 和 nextActions 各不超过 4 条。
 - 只返回 JSON，不要任何额外文字。`;
 
