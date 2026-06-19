@@ -1,118 +1,192 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { Brain, ArrowRight, History } from 'lucide-react';
+import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
+import { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
+import { saveCard, type Scene, type CalmCard } from '@/lib/trading';
+import { apiPost, ApiError } from '@/lib/api-client';
+
+const DRAFT_KEY = 'calm_card_home_draft';
+
+const SCENE_CHIPS: { value: Scene; label: string }[] = [
+  { value: 'buy', label: '想买入' },
+  { value: 'sell', label: '想卖出' },
+  { value: 'add', label: '想加仓' },
+  { value: 'cut', label: '想割肉' },
+  { value: 'missed', label: '卖飞了' },
+  { value: 'chase_loss', label: '追高亏了' },
+  { value: 'unclear', label: '说不清，就是想动一下' },
+];
+
+// Minimal local pre-check: only block obviously-empty input — no model call.
+// "Real content" = at least a short genuine sentence, OR a scene chip picked.
+function hasRealContent(thoughts: string, scene: Scene | null): boolean {
+  const t = thoughts.trim();
+  if (scene && t.length >= 2) return true; // chip + a couple chars is enough
+  return t.length >= 6; // otherwise need a short real sentence
+}
 
 function HomePage() {
+  const navigate = useNavigate();
+  const [thoughts, setThoughts] = useState('');
+  const [scene, setScene] = useState<Scene | null>(null);
+  const [hint, setHint] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Restore a draft saved before navigating away (e.g. browser back button).
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (typeof d.thoughts === 'string') setThoughts(d.thoughts);
+        if (d.scene) setScene(d.scene);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Persist the draft as the user types/picks, so back navigation keeps it.
+  useEffect(() => {
+    if (!thoughts && !scene) {
+      sessionStorage.removeItem(DRAFT_KEY);
+      return;
+    }
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ thoughts, scene }));
+  }, [thoughts, scene]);
+
+  const handleSubmit = async () => {
+    if (!hasRealContent(thoughts, scene)) {
+      setHint(true);
+      return;
+    }
+    setIsGenerating(true);
+    setError(null);
+
+    const input = {
+      type: scene ?? 'unclear',
+      symbol: '',
+      thoughts: thoughts.trim(),
+      emotions: [],
+      plannedAmount: '',
+      currentPositionRatio: '',
+      maxLossTolerance: '',
+      originalPlan: '',
+      focusChecks: [],
+      extraAnswers: {},
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      const card: CalmCard = await apiPost('/api/trading/generate-report', input);
+      saveCard(card);
+      sessionStorage.removeItem(DRAFT_KEY); // generated successfully — clear draft
+      setIsGenerating(false);
+      navigate({ to: '/card/$id', params: { id: card.id } });
+    } catch (err) {
+      setIsGenerating(false);
+      setError(err instanceof ApiError ? err.message : '生成失败，请稍后重试');
+    }
+  };
+
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
-      {/* Header */}
-      <header className="border-b border-slate-200 bg-white">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-slate-800">交易冷静卡</h1>
+    <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
+      {/* Top nav */}
+      <header className="px-5 py-4">
+        <div className="max-w-xl mx-auto flex items-center justify-between">
+          <span className="font-medium text-slate-800">交易冷静卡</span>
           <Link
             to="/history"
-            className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors"
+            className="text-sm text-slate-500 hover:text-slate-800 transition-colors"
           >
-            <History className="w-4 h-4" />
-            历史记录
+            我的记录
           </Link>
         </div>
       </header>
 
-      <main className="flex-1 max-w-4xl mx-auto px-4 py-12 w-full">
-        {/* Hero Section */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-6">
-            <Brain className="w-8 h-8 text-slate-700" />
-          </div>
-          <h1 className="text-4xl font-bold text-slate-900 mb-4">交易冷静卡</h1>
-          <p className="text-xl text-slate-600 mb-8">上头了？下单前先自查一下</p>
-          <p className="text-slate-500 max-w-2xl mx-auto leading-relaxed">
-            交易冷静卡不会告诉你买什么、卖什么。它只帮你在交易前检查：你现在是不是被情绪推着走，仓位是否失控，理由是否充分，退出条件是否清楚。
+      {/* First screen */}
+      <main className="flex-1 flex flex-col justify-center px-5 pb-10">
+        <div className="max-w-xl mx-auto w-full">
+          {/* Title */}
+          <h1 className="text-[2rem] sm:text-4xl font-semibold text-slate-900 leading-tight tracking-tight">
+            少犯一次大错，
+            <br />
+            胜过小赚几次。
+          </h1>
+          <p className="mt-4 text-slate-500 leading-relaxed">
+            出手前，先过一遍：理由、仓位、情绪。
           </p>
-        </div>
 
-        {/* Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-12">
-          <ActionCard
-            type="buy"
-            title="我想买入"
-            description="买入前检查是否冲动、仓位是否合理"
-            to="/card/new?type=buy"
-          />
-          <ActionCard
-            type="sell"
-            title="我想卖出"
-            description="卖出前检查是否符合原计划"
-            to="/card/new?type=sell"
-          />
-          <ActionCard
-            type="add"
-            title="我想加仓"
-            description="加仓前检查是否为了摊低成本"
-            to="/card/new?type=add"
-          />
-          <ActionCard
-            type="cut"
-            title="我想割肉"
-            description="割肉前检查是否受恐慌情绪驱动"
-            to="/card/new?type=cut"
-          />
-          <ActionCard
-            type="missed"
-            title="我卖飞了，想复盘"
-            description="复盘卖飞原因，避免追高买回"
-            to="/card/new?type=missed"
-          />
-          <ActionCard
-            type="chase_loss"
-            title="我追高亏了，想复盘"
-            description="复盘追高原因，识别情绪触发点"
-            to="/card/new?type=chase_loss"
-          />
-        </div>
+          {/* Main input */}
+          <div className="mt-8">
+            <textarea
+              value={thoughts}
+              onChange={(e) => {
+                setThoughts(e.target.value);
+                if (hint) setHint(false);
+              }}
+              placeholder="把你现在真实的想法写下来，比如：我刚卖出一只股票，结果又涨了，很后悔，想买回来……"
+              rows={5}
+              disabled={isGenerating}
+              className="w-full px-5 py-4 rounded-[20px] bg-white border border-stone-200/80 shadow-[0_8px_30px_rgba(15,23,42,0.06)] focus:border-slate-300 focus:ring-0 outline-none transition-colors resize-none text-[15px] leading-relaxed placeholder:text-slate-400 disabled:opacity-60"
+            />
+            <p className="mt-2 text-[13px] text-slate-400 px-1">
+              不用写得很专业，越真实越有帮助。
+            </p>
+            {hint && (
+              <p className="mt-2 text-[13px] text-amber-700 px-1">
+                先写下你现在真实的想法，哪怕只有一句。
+              </p>
+            )}
+          </div>
 
-        {/* Disclaimer */}
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
-          <p className="font-medium mb-1">风险提示</p>
-          <p className="text-amber-700">
-            本工具仅用于投资纪律检查与自我复盘，不构成任何投资建议。投资有风险，决策需独立判断。
+          {/* Scene chips */}
+          <div className="mt-5 flex flex-wrap gap-2">
+            {SCENE_CHIPS.map((chip) => (
+              <button
+                key={chip.value}
+                type="button"
+                disabled={isGenerating}
+                onClick={() => setScene(scene === chip.value ? null : chip.value)}
+                className={`px-3.5 py-1.5 rounded-full text-[13px] transition-colors border disabled:opacity-60 ${
+                  scene === chip.value
+                    ? 'bg-slate-800 text-white border-slate-800'
+                    : 'bg-white/60 text-slate-600 border-stone-200 hover:border-stone-300'
+                }`}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Error */}
+          {error && <p className="mt-5 text-[13px] text-amber-700 px-1">{error}</p>}
+
+          {/* Submit */}
+          <button
+            onClick={handleSubmit}
+            disabled={isGenerating}
+            className="mt-8 w-full py-3.5 rounded-2xl bg-slate-800 text-white font-medium hover:bg-slate-900 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                正在帮你看…
+              </>
+            ) : (
+              '先别急，看一眼'
+            )}
+          </button>
+
+          {/* Footer note */}
+          <p className="mt-6 text-[13px] text-slate-400 text-center leading-relaxed">
+            仅用于投资纪律检查与自我复盘，不构成投资建议。
+            <br />
+            记录只保存在当前设备的浏览器里。
           </p>
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-6">
-        <div className="max-w-4xl mx-auto px-4 text-center text-sm text-slate-500">
-          <p>交易冷静卡 — 投资纪律检查工具</p>
-        </div>
-      </footer>
     </div>
-  );
-}
-
-interface ActionCardProps {
-  type: string;
-  title: string;
-  description: string;
-  to: string;
-}
-
-function ActionCard({ title, description, to }: ActionCardProps) {
-  return (
-    <Link
-      to={to}
-      className="group block p-6 bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all"
-    >
-      <div className="flex items-start justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-slate-900 mb-2 group-hover:text-slate-700 transition-colors">
-            {title}
-          </h3>
-          <p className="text-sm text-slate-500">{description}</p>
-        </div>
-        <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-slate-600 group-hover:translate-x-1 transition-all" />
-      </div>
-    </Link>
   );
 }
 
@@ -120,10 +194,10 @@ export const Route = createFileRoute('/')({
   component: HomePage,
   head: () => ({
     meta: [
-      { title: '交易冷静卡 — 上头了？下单前先自查一下' },
+      { title: '交易冷静卡 — 少犯一次大错，胜过小赚几次' },
       {
         name: 'description',
-        content: '交易冷静卡不会告诉你买什么、卖什么。它只帮你在交易前检查：你现在是不是被情绪推着走，仓位是否失控，理由是否充分，退出条件是否清楚。',
+        content: '出手前，先过一遍：理由、仓位、情绪。一个帮你守住交易纪律的工具，不预测涨跌，不给买卖建议，只帮你看清这笔操作站不站得住。',
       },
     ],
   }),

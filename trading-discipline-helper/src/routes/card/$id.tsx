@@ -1,65 +1,51 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, Clock, AlertTriangle, CheckCircle, AlertCircle, Share2, Trash2 } from 'lucide-react';
-import { getReportById, deleteReport, type TradeType } from '@/lib/trading';
+import { ArrowLeft, ChevronDown, Trash2, Loader2 } from 'lucide-react';
+import {
+  getCardById,
+  deleteCard,
+  updateCard,
+  SCENE_LABELS,
+  type CalmStatus,
+  type CalmCard,
+} from '@/lib/trading';
+import { apiPost, ApiError } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 
-const TRADE_TYPE_LABELS: Record<TradeType, string> = {
-  buy: '买入',
-  sell: '卖出',
-  add: '加仓',
-  cut: '割肉',
-  missed: '卖飞复盘',
-  chase_loss: '追高亏损复盘',
+// Status visuals — muted, never alarming. No high-saturation red/green.
+const STATUS_STYLE: Record<CalmStatus, { dot: string; text: string; bg: string }> = {
+  can_think_but_wait: { dot: 'bg-slate-400', text: 'text-slate-600', bg: 'bg-slate-100' },
+  pause_first: { dot: 'bg-amber-500', text: 'text-amber-800', bg: 'bg-[#FFF7ED]' },
+  strong_pause: { dot: 'bg-orange-600', text: 'text-orange-900', bg: 'bg-orange-50' },
+  review_not_trade: { dot: 'bg-slate-500', text: 'text-slate-700', bg: 'bg-stone-100' },
 };
-
-function getScoreColor(score: number, isGood: boolean): string {
-  if (isGood) {
-    // Higher is better
-    if (score >= 70) return 'text-emerald-600 bg-emerald-50';
-    if (score >= 50) return 'text-amber-600 bg-amber-50';
-    return 'text-red-600 bg-red-50';
-  } else {
-    // Lower is better (risk)
-    if (score <= 30) return 'text-emerald-600 bg-emerald-50';
-    if (score <= 50) return 'text-amber-600 bg-amber-50';
-    return 'text-red-600 bg-red-50';
-  }
-}
-
-function getScoreLabel(score: number, isGood: boolean): string {
-  if (isGood) {
-    if (score >= 70) return '良好';
-    if (score >= 50) return '一般';
-    return '需改进';
-  } else {
-    if (score <= 30) return '低风险';
-    if (score <= 50) return '中等风险';
-    return '高风险';
-  }
-}
 
 function CardDetailPage() {
   const navigate = useNavigate();
   const { id } = Route.useParams();
-  const [report, setReport] = useState(getReportById(id));
+  const [card, setCard] = useState(getCardById(id));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
+  // Optional position-info supplement
+  const [positionInput, setPositionInput] = useState('');
+  const [refining, setRefining] = useState(false);
+  const [refineError, setRefineError] = useState<string | null>(null);
 
   useEffect(() => {
-    setReport(getReportById(id));
+    setCard(getCardById(id));
   }, [id]);
 
-  if (!report) {
+  if (!card) {
     return (
-      <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
-        <header className="border-b border-slate-200 bg-white">
-          <div className="max-w-4xl mx-auto px-4 py-4">
-            <h1 className="text-lg font-semibold text-slate-800">报告未找到</h1>
+      <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
+        <header className="px-5 py-4">
+          <div className="max-w-xl mx-auto">
+            <span className="font-medium text-slate-800">没有找到这张卡</span>
           </div>
         </header>
-        <main className="flex-1 max-w-4xl mx-auto px-4 py-12 w-full text-center">
-          <p className="text-slate-600 mb-4">该冷静卡报告不存在或已被删除。</p>
-          <Link to="/" className="text-slate-800 underline">
-            返回首页
+        <main className="flex-1 max-w-xl mx-auto px-5 py-12 w-full text-center">
+          <p className="text-slate-600 mb-4">这张冷静卡不存在或已被删除。</p>
+          <Link to="/" className="text-slate-800 underline underline-offset-4">
+            回到首页
           </Link>
         </main>
       </div>
@@ -67,217 +53,247 @@ function CardDetailPage() {
   }
 
   const handleDelete = () => {
-    deleteReport(id);
+    deleteCard(id);
     navigate({ to: '/history' });
   };
 
-  const formatDate = (isoString: string) => {
-    const date = new Date(isoString);
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  // Merge the supplemented position info with the original thought and
+  // regenerate a fresh card in place (same id, same list position).
+  const handleRefine = async () => {
+    if (!card || !positionInput.trim()) return;
+    setRefining(true);
+    setRefineError(null);
+
+    const input = {
+      type: card.type,
+      symbol: card.symbol,
+      thoughts: card.userThought,
+      emotions: [],
+      plannedAmount: '',
+      currentPositionRatio: positionInput.trim(),
+      maxLossTolerance: '',
+      originalPlan: '',
+      focusChecks: [],
+      extraAnswers: { 仓位补充: positionInput.trim() },
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      const next: CalmCard = await apiPost('/api/trading/generate-report', input);
+      // Keep the original id so the list position and the URL stay stable.
+      const merged: CalmCard = { ...next, id: card.id, needsPositionInfo: false };
+      updateCard(card.id, merged);
+      setCard(merged);
+      setPositionInput('');
+      setRefining(false);
+    } catch (err) {
+      setRefining(false);
+      setRefineError(err instanceof ApiError ? err.message : '更新失败，请稍后重试');
+    }
   };
 
+  const statusStyle = STATUS_STYLE[card.calmStatus] ?? STATUS_STYLE.pause_first;
+
+  // Scene-aware supplement copy + placeholder. "Buy/add" users may be flat or
+  // lightly held, so don't presume they hold it; "sell/cut" users do hold it.
+  const buyLike = card.type === 'buy' || card.type === 'add';
+  const positionPrompt = buyLike
+    ? '想让我看得更准一点？用一句话说说你的仓位情况——比如目前空仓、或这只已经占了多少，这次大概想动多少。'
+    : '想让我看得更准一点？用一句话告诉我：这只现在占你多少，这次大概想动多少。';
+  const positionPlaceholder = buyLike
+    ? '例如：目前空仓，想先买 10 万试试'
+    : '例如：现在占 20%，这次想卖一半';
+
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
+    <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
       {/* Header */}
-      <header className="border-b border-slate-200 bg-white sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link
-              to="/history"
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-            >
+      <header className="px-5 py-4">
+        <div className="max-w-xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link to="/" className="p-2 -ml-2 hover:bg-black/5 rounded-lg transition-colors shrink-0">
               <ArrowLeft className="w-5 h-5 text-slate-600" />
             </Link>
-            <div>
-              <h1 className="text-lg font-semibold text-slate-800">冷静报告</h1>
-              <p className="text-sm text-slate-500">{TRADE_TYPE_LABELS[report.input.type]} · {report.input.symbol}</p>
+            <div className="min-w-0">
+              <h1 className="font-medium text-slate-800 leading-tight">冷静卡</h1>
+              <p className="text-[12px] text-slate-400 truncate">
+                {SCENE_LABELS[card.type]}
+                {card.symbol ? ` · ${card.symbol}` : ''}
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="p-2 hover:bg-red-50 rounded-lg transition-colors text-slate-500 hover:text-red-600"
-              title="删除"
-            >
-              <Trash2 className="w-5 h-5" />
-            </button>
-          </div>
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="p-2 -mr-2 hover:bg-black/5 rounded-lg transition-colors text-slate-400 hover:text-slate-600 shrink-0"
+            title="删除"
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
         </div>
       </header>
 
-      <main className="flex-1 max-w-4xl mx-auto px-4 py-8 w-full space-y-6">
-        {/* Summary */}
-        <section className="bg-white rounded-xl border border-slate-200 p-6">
-          <div className="flex items-start gap-3 mb-4">
-            <Clock className="w-5 h-5 text-slate-500 mt-0.5" />
-            <div>
-              <h2 className="text-sm font-medium text-slate-500 mb-1">决策摘要</h2>
-              <p className="text-slate-800">{report.summary}</p>
-              <p className="text-xs text-slate-400 mt-2">{formatDate(report.createdAt)}</p>
-            </div>
-          </div>
-        </section>
+      <main className="flex-1 max-w-xl mx-auto px-5 pb-12 w-full">
+        {/* ===== First-screen: minimal — headline + one action + status ===== */}
+        <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgba(15,23,42,0.06)] border border-stone-100 p-6 sm:p-8">
+          {/* Status badge */}
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${statusStyle.bg}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
+            <span className={`text-[12px] font-medium ${statusStyle.text}`}>{card.calmStatusText}</span>
+          </span>
 
-        {/* Scores */}
-        <section className="bg-white rounded-xl border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4">风险评估</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <ScoreCard
-              label="冲动风险"
-              score={report.scores.impulseRisk}
-              isGood={false}
-            />
-            <ScoreCard
-              label="仓位风险"
-              score={report.scores.positionRisk}
-              isGood={false}
-            />
-            <ScoreCard
-              label="决策理由质量"
-              score={report.scores.reasonQuality}
-              isGood={true}
-            />
-          </div>
-        </section>
+          {/* Title */}
+          <h2 className="text-[22px] font-semibold text-slate-900 mt-5 mb-4">先别急</h2>
 
-        {/* Emotion Analysis */}
-        <section className="bg-white rounded-xl border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4">情绪识别</h2>
-          <div className="space-y-3">
-            {report.emotionAnalysis.map((item, index) => (
-              <div key={index} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
-                <BrainIcon className="w-5 h-5 text-slate-500 mt-0.5" />
-                <div>
-                  <p className="font-medium text-slate-800">{item.label}</p>
-                  <p className="text-sm text-slate-600">{item.explanation}</p>
+          {/* Headline — the single most important thing on the screen */}
+          <p className="text-[18px] sm:text-[19px] text-slate-800 leading-[1.85]">
+            {card.headline || [card.emotionalOpening, card.coreInsight].filter(Boolean).join(' ')}
+          </p>
+
+          {/* Lesson (review scenes only) */}
+          {card.lesson && (
+            <p className="mt-5 text-[14px] text-slate-500 leading-[1.8] italic">{card.lesson}</p>
+          )}
+
+          {/* One action */}
+          <div className="mt-7 p-5 rounded-[18px] bg-[#FAFAF7] border border-stone-100">
+            <p className="text-[13px] text-slate-400 mb-2">现在只做一件事</p>
+            <p className="text-[15px] text-slate-800 leading-[1.8]">{card.oneAction}</p>
+          </div>
+        </div>
+
+        {/* ===== Optional position supplement (shown only when the card
+             would be more accurate with position info) ===== */}
+        {card.needsPositionInfo && (
+          <div className="mt-4 p-5 rounded-[20px] bg-[#FAFAF7] border border-stone-200/70">
+            <p className="text-[14px] text-slate-600 leading-relaxed mb-3">
+              {positionPrompt}
+            </p>
+            <input
+              type="text"
+              value={positionInput}
+              onChange={(e) => setPositionInput(e.target.value)}
+              placeholder={positionPlaceholder}
+              disabled={refining}
+              className="w-full px-4 py-3 rounded-[16px] bg-white border border-stone-200/80 focus:border-slate-300 outline-none transition-colors text-[15px] placeholder:text-slate-400 disabled:opacity-60"
+            />
+            {refineError && <p className="mt-2 text-[13px] text-amber-700">{refineError}</p>}
+            <button
+              onClick={handleRefine}
+              disabled={refining || !positionInput.trim()}
+              className="mt-3 w-full py-2.5 rounded-2xl bg-slate-800 text-white text-[15px] font-medium hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            >
+              {refining ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  正在重新看…
+                </>
+              ) : (
+                '让卡片更准一点'
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* ===== Collapsed detail ===== */}
+        <div className="mt-5">
+          <button
+            onClick={() => setShowDetail(!showDetail)}
+            className="mx-auto flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            展开看看系统怎么判断的
+            <ChevronDown className={`w-4 h-4 transition-transform ${showDetail ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showDetail && (
+            <div className="mt-5 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+              {/* Self-check questions */}
+              {card.selfCheckQuestions.length > 0 && (
+                <DetailSection title="如果还想继续操作，先问自己 3 个问题">
+                  <ol className="space-y-2.5">
+                    {card.selfCheckQuestions.map((q, i) => (
+                      <li key={i} className="flex gap-3 text-[15px] text-slate-700 leading-relaxed">
+                        <span className="text-slate-300 font-medium shrink-0">{i + 1}</span>
+                        <span>{q}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </DetailSection>
+              )}
+
+              {/* Emotion analysis */}
+              {card.detail.emotionAnalysis.length > 0 && (
+                <DetailSection title="情绪识别">
+                  <div className="space-y-3">
+                    {card.detail.emotionAnalysis.map((item, i) => (
+                      <div key={i}>
+                        <p className="text-[14px] font-medium text-slate-700">{item.label}</p>
+                        <p className="text-[14px] text-slate-500 mt-0.5 leading-relaxed">{item.explanation}</p>
+                      </div>
+                    ))}
+                  </div>
+                </DetailSection>
+              )}
+
+              {/* Scores — quiet text + thin bars, no big red bars */}
+              <DetailSection title="系统的几个观察">
+                <div className="space-y-3.5">
+                  <QuietBar label="冲动程度" score={card.detail.scores.impulseRisk} higherWorse />
+                  <QuietBar label="仓位风险" score={card.detail.scores.positionRisk} higherWorse />
+                  <QuietBar label="理由完整度" score={card.detail.scores.reasonQuality} higherWorse={false} />
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
+              </DetailSection>
 
-        {/* Risks */}
-        <section className="bg-white rounded-xl border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-amber-500" />
-            主要风险点
-          </h2>
-          <ul className="space-y-2">
-            {report.risks.map((risk, index) => (
-              <li key={index} className="flex items-start gap-2 text-slate-700">
-                <span className="text-amber-500 mt-1">•</span>
-                <span>{risk}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+              {/* Risks */}
+              {card.detail.risks.length > 0 && (
+                <DetailSection title="可以再留意的点">
+                  <ul className="space-y-2">
+                    {card.detail.risks.map((risk, i) => (
+                      <li key={i} className="flex gap-2 text-[14px] text-slate-600 leading-relaxed">
+                        <span className="text-slate-300 mt-0.5">·</span>
+                        <span>{risk}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </DetailSection>
+              )}
 
-        {/* Open Questions */}
-        <section className="bg-white rounded-xl border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-blue-500" />
-            你还没有想清楚的问题
-          </h2>
-          <ul className="space-y-2">
-            {report.openQuestions.map((question, index) => (
-              <li key={index} className="flex items-start gap-2 text-slate-700">
-                <span className="text-blue-500 mt-1">?</span>
-                <span>{question}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+              {/* Next actions */}
+              {card.detail.nextActions.length > 0 && (
+                <DetailSection title="如果之后还想做，可以先">
+                  <ul className="space-y-2">
+                    {card.detail.nextActions.map((action, i) => (
+                      <li key={i} className="flex gap-3 text-[14px] text-slate-600 leading-relaxed">
+                        <span className="text-slate-300 shrink-0">{i + 1}</span>
+                        <span>{action}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </DetailSection>
+              )}
 
-        {/* Discipline Suggestion */}
-        <section className="bg-slate-800 rounded-xl p-6 text-white">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <CheckCircle className="w-5 h-5" />
-            建议冷静动作
-          </h2>
-          <p className="text-slate-200 leading-relaxed">{report.disciplineSuggestion}</p>
-        </section>
-
-        {/* Next Actions */}
-        <section className="bg-white rounded-xl border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4">下一步行动清单</h2>
-          <ul className="space-y-2">
-            {report.nextActions.map((action, index) => (
-              <li key={index} className="flex items-start gap-3">
-                <div className="w-5 h-5 rounded border-2 border-slate-300 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-xs text-slate-400">{index + 1}</span>
-                </div>
-                <span className="text-slate-700">{action}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {/* Disclaimer */}
-        <section className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
-          <p className="font-medium mb-1">风险提示</p>
-          <p className="text-amber-700">{report.disclaimer}</p>
-        </section>
-
-        {/* Original Input (collapsible) */}
-        <details className="bg-white rounded-xl border border-slate-200 p-6">
-          <summary className="cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-800">
-            查看原始输入
-          </summary>
-          <div className="mt-4 space-y-3 text-sm">
-            <div>
-              <span className="text-slate-500">操作标的：</span>
-              <span className="text-slate-800">{report.input.symbol}</span>
+              <p className="text-[12px] text-slate-400 leading-relaxed px-1 pt-1">
+                {card.detail.disclaimer}
+              </p>
             </div>
-            <div>
-              <span className="text-slate-500">当前想法：</span>
-              <p className="text-slate-800 mt-1">{report.input.thoughts}</p>
-            </div>
-            <div>
-              <span className="text-slate-500">当前情绪：</span>
-              <span className="text-slate-800">{report.input.emotions.join('、')}</span>
-            </div>
-            <div>
-              <span className="text-slate-500">计划仓位：</span>
-              <span className="text-slate-800">{report.input.plannedAmount}</span>
-            </div>
-            <div>
-              <span className="text-slate-500">当前仓位：</span>
-              <span className="text-slate-800">{report.input.currentPositionRatio}</span>
-            </div>
-            <div>
-              <span className="text-slate-500">可接受亏损：</span>
-              <span className="text-slate-800">{report.input.maxLossTolerance}</span>
-            </div>
-            <div>
-              <span className="text-slate-500">原计划：</span>
-              <p className="text-slate-800 mt-1">{report.input.originalPlan || '无'}</p>
-            </div>
-          </div>
-        </details>
+          )}
+        </div>
       </main>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete confirm */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 max-w-sm w-full">
-            <h3 className="text-lg font-semibold text-slate-800 mb-2">确认删除</h3>
-            <p className="text-slate-600 mb-6">删除后无法恢复，确定要删除这份冷静卡吗？</p>
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[24px] p-6 max-w-sm w-full shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-800 mb-2">删除这张卡？</h3>
+            <p className="text-slate-500 mb-6 text-sm">删除后无法恢复。</p>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 py-2 px-4 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
+                className="flex-1 py-2.5 px-4 border border-stone-200 rounded-2xl text-slate-700 hover:bg-stone-50 transition-colors"
               >
                 取消
               </button>
               <button
                 onClick={handleDelete}
-                className="flex-1 py-2 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                className="flex-1 py-2.5 px-4 bg-slate-800 text-white rounded-2xl hover:bg-slate-900 transition-colors"
               >
                 删除
               </button>
@@ -289,66 +305,36 @@ function CardDetailPage() {
   );
 }
 
-interface ScoreCardProps {
-  label: string;
-  score: number;
-  isGood: boolean;
-}
-
-function ScoreCard({ label, score, isGood }: ScoreCardProps) {
-  const colorClass = getScoreColor(score, isGood);
-  const labelClass = getScoreLabel(score, isGood);
-
+function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="p-4 bg-slate-50 rounded-lg">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-slate-600">{label}</span>
-        <span className={`text-xs px-2 py-1 rounded-full ${colorClass}`}>{labelClass}</span>
-      </div>
-      <div className="text-3xl font-bold text-slate-800">{score}</div>
-      <div className="w-full bg-slate-200 rounded-full h-2 mt-2">
-        <div
-          className={`h-2 rounded-full transition-all ${
-            isGood
-              ? score >= 70
-                ? 'bg-emerald-500'
-                : score >= 50
-                ? 'bg-amber-500'
-                : 'bg-red-500'
-              : score <= 30
-              ? 'bg-emerald-500'
-              : score <= 50
-              ? 'bg-amber-500'
-              : 'bg-red-500'
-          }`}
-          style={{ width: `${score}%` }}
-        />
-      </div>
-    </div>
+    <section className="bg-white rounded-[20px] border border-stone-100 p-5">
+      <h3 className="text-[13px] font-medium text-slate-400 mb-3">{title}</h3>
+      {children}
+    </section>
   );
 }
 
-function BrainIcon({ className }: { className?: string }) {
+function QuietBar({ label, score, higherWorse }: { label: string; score: number; higherWorse: boolean }) {
+  // Concerning = high when higherWorse, low otherwise. Use warm amber for
+  // "worth attention", neutral slate otherwise — no green, no bright red.
+  const concerning = higherWorse ? score >= 60 : score <= 40;
+  const barColor = concerning ? 'bg-amber-400' : 'bg-slate-300';
   return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-      />
-    </svg>
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[14px] text-slate-600">{label}</span>
+        <span className="text-[13px] text-slate-400">{score}</span>
+      </div>
+      <div className="w-full bg-stone-100 rounded-full h-1.5">
+        <div className={`h-1.5 rounded-full ${barColor}`} style={{ width: `${score}%` }} />
+      </div>
+    </div>
   );
 }
 
 export const Route = createFileRoute('/card/$id')({
   component: CardDetailPage,
   head: () => ({
-    meta: [{ title: '冷静报告 — 交易冷静卡' }],
+    meta: [{ title: '冷静卡 — 交易冷静卡' }],
   }),
 });

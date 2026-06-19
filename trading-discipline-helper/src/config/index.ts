@@ -75,8 +75,19 @@ export const envConfigs: Record<string, string> = {
   // OPENAI_API_KEY / ANTHROPIC_API_KEY are common ambient vars, and falling back
   // to them would let the admin "Test" silently pass on the machine's own key.
   replicate_api_token: procEnv.REPLICATE_API_TOKEN ?? '',
+
+  // LLM provider for calm-card generation: 'anthropic' | 'openai' | 'gemini'.
+  // Switch providers by setting LLM_PROVIDER; model/base-url have per-provider
+  // defaults (see src/lib/trading/llm.ts) and can be overridden here.
+  llm_provider: procEnv.LLM_PROVIDER ?? 'anthropic',
+  llm_model: procEnv.LLM_MODEL ?? '',
+
   anthropic_api_key: procEnv.ANTHROPIC_API_KEY ?? '',
   anthropic_base_url: procEnv.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com',
+  openai_api_key: procEnv.OPENAI_API_KEY ?? '',
+  openai_base_url: procEnv.OPENAI_BASE_URL ?? 'https://api.openai.com',
+  gemini_api_key: procEnv.GEMINI_API_KEY ?? '',
+  gemini_base_url: procEnv.GEMINI_BASE_URL ?? 'https://generativelanguage.googleapis.com',
 
   // Locale (public)
   locale: publicEnv('VITE_DEFAULT_LOCALE') ?? 'en',

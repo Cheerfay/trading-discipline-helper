@@ -38,7 +38,8 @@ export async function callClaudeAPI(
   messages: ClaudeMessage[],
   apiKey: string,
   model: string = 'claude-3-5-sonnet-20241022',
-  baseURL: string = 'https://api.anthropic.com'
+  baseURL: string = 'https://api.anthropic.com',
+  system?: string
 ): Promise<string> {
   const url = `${baseURL}/v1/messages`;
 
@@ -52,7 +53,8 @@ export async function callClaudeAPI(
     },
     body: JSON.stringify({
       model,
-      max_tokens: 4096,
+      max_tokens: 2048,
+      ...(system ? { system } : {}),
       messages,
     }),
   });
@@ -67,16 +69,47 @@ export async function callClaudeAPI(
 }
 
 /**
- * Build prompt for trading discipline report
+ * System prompt — the companion persona + hard product boundaries.
+ * Kept stable across requests so it can be cached and tuned independently.
+ */
+export const CALM_CARD_SYSTEM_PROMPT = `你是「交易冷静卡」里的陪伴者。用户在准备交易、或刚做完一笔交易、情绪上头时打开了你。
+
+你的身份：一个理性但温和的朋友。不是分析师，不是老师，更不是风控系统。
+
+你要做的：先接住用户的情绪，再温和地帮他分清「这是计划，还是情绪」，最后给他一个很小的、能立刻做的动作，让他先停下来。
+
+你绝对不做的事（合规红线，必须严守）：
+- 不预测涨跌，不给买卖建议，不给目标价
+- 不评价用户提到的这只标的好不好、值不值得买、未来会怎么走（不做任何个股价值判断）
+- 不给针对这只标的的具体仓位数字（如说出某个百分比、"加到几成仓"）——这类话踩监管红线
+- 不给买卖时机的择时阈值（如"突破某价位/涨跌某百分比就可以买/追/卖"）——这也算监管意义上的"买卖时机建议"，禁止
+- 不说"建议买入/卖出""抄底""逃顶""重仓""稳赚""必涨"这类词
+- 不审判用户，不说"你的理由不足""决策质量差""你违反了纪律""风险很高"这类话
+
+你可以做的（这才是价值所在）：
+- 复述用户自己提到的事实（标的名、价格、经过、数字）——那是他说的，复述能证明你听懂了他这一次
+- 点破他此刻正在发生的心理陷阱（如把卖出价当成"该回到的价"、用新交易补偿后悔），就事论事，不报"锚定偏差"这类术语
+- 涉及仓位时，只能给通用纪律（如"情绪上头、非买不可时，任何冲动单子都该先砍到平时仓位的零头"），绝不针对这只票给数字
+
+语气要求：
+- 像朋友说话，口语、温和、克制，有停顿感
+- 先共情（承认这种冲动/后悔/害怕错过都是正常的），再提醒
+- 简短。用户正上头，读不进长篇大论
+
+你只输出一个 JSON 对象，不要有任何额外文字或解释。`;
+
+/**
+ * Build the user message carrying this specific decision's context.
  */
 export function buildPrompt(input: any): ClaudeMessage[] {
-  const typeLabels: Record<string, string> = {
-    buy: '买入',
-    sell: '卖出',
-    add: '加仓',
-    cut: '割肉',
-    missed: '卖飞复盘',
-    chase_loss: '追高亏损复盘',
+  const sceneLabels: Record<string, string> = {
+    buy: '想买入',
+    sell: '想卖出',
+    add: '想加仓',
+    cut: '想割肉',
+    missed: '卖飞了，想复盘',
+    chase_loss: '追高亏了，想复盘',
+    unclear: '说不清，就是想动一下',
   };
 
   const emotionLabels: Record<string, string> = {
@@ -91,75 +124,72 @@ export function buildPrompt(input: any): ClaudeMessage[] {
     other: '其他',
   };
 
-  const typeLabel = typeLabels[input.type] || input.type;
-  const emotionLabelsStr = input.emotions.map((e: string) => emotionLabels[e] || e).join('、');
+  const sceneLabel = sceneLabels[input.type] || input.type;
+  const emotionLabelsStr = (input.emotions || []).map((e: string) => emotionLabels[e] || e).join('、');
 
-  let prompt = `你是一个投资纪律检查助手。用户正在进行${typeLabel}决策，请分析并生成一份冷静报告。
+  let prompt = `用户现在的情况：
 
-## 用户输入信息
-
-- 操作标的：${input.symbol}
-- 操作类型：${typeLabel}
-- 当前想法：${input.thoughts}
-- 当前情绪：${emotionLabelsStr || '平稳'}
-- 计划操作金额/仓位：${input.plannedAmount}
-- 当前仓位占比：${input.currentPositionRatio}
-- 可接受最大亏损：${input.maxLossTolerance}
-- 原交易计划：${input.originalPlan || '无'}
-- 希望重点检查：${input.focusChecks.join('、') || '无'}
+- 场景：${sceneLabel}
+- 操作标的：${input.symbol || '（未填写）'}
+- 真实想法（原话）：${input.thoughts}
+- 当前情绪：${emotionLabelsStr || '（未选择）'}
+- 计划动用金额/仓位：${input.plannedAmount || '（未填写）'}
+- 该标的当前占总资产：${input.currentPositionRatio || '（未填写）'}
+- 可接受最大亏损：${input.maxLossTolerance || '（未填写）'}
+- 原交易计划：${input.originalPlan || '（没有）'}
 `;
 
-  // Add type-specific extra answers
   if (input.extraAnswers) {
-    prompt += '\n## 额外信息\n';
-    for (const [key, value] of Object.entries(input.extraAnswers)) {
-      if (value) {
+    const extras = Object.entries(input.extraAnswers).filter(([, v]) => v);
+    if (extras.length > 0) {
+      prompt += '\n用户补充的背景：\n';
+      for (const [key, value] of extras) {
         prompt += `- ${key}: ${value}\n`;
       }
     }
   }
 
   prompt += `
-## 输出要求
+请生成一张「冷静卡」，按下面的 JSON 结构输出。**最重要的是 headline——它是用户睁眼第一个、可能也是唯一会读的东西，请最用心地写它。**
 
-请以 JSON 格式输出报告，包含以下字段：
+写之前，先在心里做两件事：
+1. **抓住用户这一次的具体事实**——只从他的原话里提取价格、数字、经过、标的，并在 headline 里复述出来。这能让他一眼觉得"这是说我，不是套话"。信息越具体，卡越要长在这个案例上；只有当用户写得很模糊、确实没有事实可抓时，才退回到通用的安抚。
+2. **点破他此刻正在发生的那个具体心理陷阱**——不是贴"锚定偏差"这种标签，而是就着他的情境说人话（比如点破：他在等一个回不来的"心理价位"，那只是他自己的锚，不是市场会给的价）。
+
+⚠️ 本提示里的所有示例只用来说明"语气和角度"，**绝不要照抄里面的任何数字、价格、百分比或句子**。所有价格和数字必须来自用户本人的输入；用户没提到的数字，一个都不许出现。
+
+用户可能只写了一句话、信息不全（标的、金额、仓位都可能没填）。这很正常——**不要因为信息少就拒绝生成或要求补充**，用你手上的信息尽力生成一张有价值的卡。情绪和纪律的判断本来就不依赖精确数字。提不到具体标的时，用"这次操作""这只标的"这类泛称即可。
 
 \`\`\`json
 {
-  "summary": "用2-3句话总结用户现在想做什么，以及主要原因",
-  "emotionAnalysis": [
-    {
-      "label": "情绪类型（如：FOMO、恐慌、后悔驱动、锚定成本、从众心理、损失厌恶、过度自信、想回本心理、情绪状态相对稳定）",
-      "explanation": "简短解释该情绪"
-    }
-  ],
-  "scores": {
-    "impulseRisk": 0-100的冲动风险评分（越高越危险），
-    "positionRisk": 0-100的仓位风险评分（越高越危险），
-    "reasonQuality": 0-100的决策理由质量评分（越高越好）
-  },
-  "risks": ["3-5条主要风险点"],
-  "openQuestions": ["3-5个引导用户补充思考的问题"],
-  "disciplineSuggestion": "纪律建议（不能直接说买或卖，只能给纪律建议）",
-  "nextActions": ["3-5个下一步行动清单"]
+  "headline": "首屏主角。把'复述他这次的具体事实+接住情绪'和'点破此刻的心理陷阱'融成一个自然流淌的段落（2-4句，像朋友一口气跟你说的话），不要分点、不要标题感。要长在这个具体案例上（只用他原话里出现过的价格/数字/经过，不要自己编造任何数字），而不是任何人都适用的套话。温和、口语、诚实，读完能让人松一口气、停半秒。注意：可以复述他自己说的标的和价格，但绝不评价这只票好不好、该不该买、会涨会跌。",
+  "emotionalOpening": "情绪安抚段，2-3句。（这是 headline 的备用/补充，单独写也要成立）",
+  "coreInsight": "一句话核心判断，简短一句，点破这次操作背后真正的驱动力或正在发生的心理陷阱。（会用在历史列表里，要能独立概括这次的真相）",
+  "calmStatus": "整体状态，四选一：'can_think_but_wait'（可以继续想，但别急着下单）/ 'pause_first'（建议先暂停）/ 'strong_pause'（强烈建议先冷静）/ 'review_not_trade'（更适合复盘，不适合立刻交易）",
+  "oneAction": "一个最关键、最具体、现在就能做的冷静动作。只给一个，不要列一堆。例如：'先等一个完整交易日，明天同一时间重新写一次买入理由，如果仍然成立再评估。'。涉及仓位时只能给通用纪律，不要针对这只票给具体仓位数字。",
+  "selfCheckQuestions": ["3个自查问题，每个一句话，简短。引导用户分清情绪和计划。"],
+  "lesson": "仅当场景是'卖飞了'或'追高亏了'这类复盘场景时，给一句可以带走、可复用的决策原则；其他场景留空字符串。只讲原则，不给价格触发点或买卖时机阈值（例如可以说'想追回前，先分清是有了和后悔无关的新理由，还是只是不甘心；只有写得出新理由时才考虑，并且永远用很小的仓位'；绝不能说'突破某价位/涨跌某百分比就可以追'这类择时规则）。",
+  "needsPositionInfo": "布尔值。如果用户没有提供仓位信息（这只占多少、这次想动多少），而这又是买入/卖出/加仓/割肉这类仓位会影响判断的场景，填 true，表示如果用户愿意补充仓位，卡片能更准；否则 false。",
+  "detail": {
+    "emotionAnalysis": [{ "label": "情绪/偏差名称", "explanation": "一句温和的解释，尽量结合他这次的具体情境" }],
+    "scores": {
+      "impulseRisk": "0-100，冲动程度（越高越需要冷静）",
+      "positionRisk": "0-100，仓位风险（越高越需要注意）",
+      "reasonQuality": "0-100，理由完整度（越高越好）"
+    },
+    "risks": ["最多4条，温和措辞，不要审判"],
+    "nextActions": ["最多4条，具体可执行"]
+  }
 }
 \`\`\`
 
-## 重要约束
+注意：
+- headline 是首屏唯一的主文案，emotionalOpening / coreInsight 是它的备用与补充，三者都要写。
+- 守住合规红线：可以复述用户提到的标的和价格，但不评价这只票好坏、不预测涨跌、不给买卖建议、不给针对这只票的具体仓位数字、不给"突破某价位/涨跌某百分比就买卖"这类择时阈值；涉及仓位只给通用纪律。
+- calmStatus 与评分大致对应：impulseRisk≥80 或 reasonQuality≤30 → strong_pause；impulseRisk≥60 → pause_first；复盘场景（卖飞/追高）优先 review_not_trade。
+- 信息不足时，positionRisk 可以给一个保守的中性估计，不要因此降低整张卡的价值。
+- detail 里的内容是默认折叠的，可以稍详细，但 risks 和 nextActions 各不超过 4 条。
+- 只返回 JSON，不要任何额外文字。`;
 
-1. **不要给出任何买卖建议**，只做纪律检查
-2. **不要预测股票涨跌**
-3. **不要使用"建议买入"、"建议卖出"、"目标价"、"必涨"、"抄底"、"逃顶"、"重仓"、"稳赚"等词汇**
-4. 使用"当前决策理由不够充分"、"该操作可能违反你的仓位纪律"、"当前情绪中存在明显FOMO"、"建议先补充反证信息"、"建议进入冷静期后重新评估"等表述
-5. 评分要基于用户的输入合理判断
-6. 返回纯 JSON 格式，不要有其他文字
-
-请开始分析并输出 JSON 格式的报告。`;
-
-  return [
-    {
-      role: 'user',
-      content: prompt,
-    },
-  ];
+  return [{ role: 'user', content: prompt }];
 }
