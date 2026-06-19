@@ -82,6 +82,9 @@ export interface CalmCard {
   oneAction: string; // 一个冷静动作
   selfCheckQuestions: string[]; // 三个自查问题
   lesson: string; // 复盘场景的一句话提炼
+  // True when the model judged this card would be more accurate with position
+  // info the user hasn't given yet. Drives the optional supplement invite.
+  needsPositionInfo: boolean;
   // Collapsed detail layer
   detail: TradeReport;
   createdAt: string;

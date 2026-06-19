@@ -1,7 +1,8 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { Link } from '@tanstack/react-router';
+import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { useState } from 'react';
-import type { Scene } from '@/lib/trading';
+import { Loader2 } from 'lucide-react';
+import { saveCard, type Scene, type CalmCard } from '@/lib/trading';
+import { apiPost, ApiError } from '@/lib/api-client';
 
 const SCENE_CHIPS: { value: Scene; label: string }[] = [
   { value: 'buy', label: '想买入' },
@@ -13,23 +14,53 @@ const SCENE_CHIPS: { value: Scene; label: string }[] = [
   { value: 'unclear', label: '说不清，就是想动一下' },
 ];
 
+// Minimal local pre-check: only block obviously-empty input — no model call.
+// "Real content" = at least a short genuine sentence, OR a scene chip picked.
+function hasRealContent(thoughts: string, scene: Scene | null): boolean {
+  const t = thoughts.trim();
+  if (scene && t.length >= 2) return true; // chip + a couple chars is enough
+  return t.length >= 6; // otherwise need a short real sentence
+}
+
 function HomePage() {
   const navigate = useNavigate();
   const [thoughts, setThoughts] = useState('');
   const [scene, setScene] = useState<Scene | null>(null);
-  const [error, setError] = useState(false);
+  const [hint, setHint] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
-    if (!thoughts.trim()) {
-      setError(true);
+  const handleSubmit = async () => {
+    if (!hasRealContent(thoughts, scene)) {
+      setHint(true);
       return;
     }
-    // Pass the draft to the supplement page via sessionStorage (thoughts can be long).
-    sessionStorage.setItem(
-      'calm_card_draft',
-      JSON.stringify({ thoughts: thoughts.trim(), scene: scene ?? 'unclear' })
-    );
-    navigate({ to: '/card/new', search: { scene: scene ?? 'unclear' } });
+    setIsGenerating(true);
+    setError(null);
+
+    const input = {
+      type: scene ?? 'unclear',
+      symbol: '',
+      thoughts: thoughts.trim(),
+      emotions: [],
+      plannedAmount: '',
+      currentPositionRatio: '',
+      maxLossTolerance: '',
+      originalPlan: '',
+      focusChecks: [],
+      extraAnswers: {},
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      const card: CalmCard = await apiPost('/api/trading/generate-report', input);
+      saveCard(card);
+      setIsGenerating(false);
+      navigate({ to: '/card/$id', params: { id: card.id } });
+    } catch (err) {
+      setIsGenerating(false);
+      setError(err instanceof ApiError ? err.message : '生成失败，请稍后重试');
+    }
   };
 
   return (
@@ -68,16 +99,17 @@ function HomePage() {
               value={thoughts}
               onChange={(e) => {
                 setThoughts(e.target.value);
-                if (error) setError(false);
+                if (hint) setHint(false);
               }}
               placeholder="把你现在真实的想法写下来，比如：我刚卖出一只股票，结果又涨了，很后悔，想买回来……"
               rows={5}
-              className="w-full px-5 py-4 rounded-[20px] bg-white border border-stone-200/80 shadow-[0_8px_30px_rgba(15,23,42,0.06)] focus:border-slate-300 focus:ring-0 outline-none transition-colors resize-none text-[15px] leading-relaxed placeholder:text-slate-400"
+              disabled={isGenerating}
+              className="w-full px-5 py-4 rounded-[20px] bg-white border border-stone-200/80 shadow-[0_8px_30px_rgba(15,23,42,0.06)] focus:border-slate-300 focus:ring-0 outline-none transition-colors resize-none text-[15px] leading-relaxed placeholder:text-slate-400 disabled:opacity-60"
             />
             <p className="mt-2 text-[13px] text-slate-400 px-1">
               不用写得很专业，越真实越有帮助。
             </p>
-            {error && (
+            {hint && (
               <p className="mt-2 text-[13px] text-amber-700 px-1">
                 先写下你现在真实的想法，哪怕只有一句。
               </p>
@@ -90,8 +122,9 @@ function HomePage() {
               <button
                 key={chip.value}
                 type="button"
+                disabled={isGenerating}
                 onClick={() => setScene(scene === chip.value ? null : chip.value)}
-                className={`px-3.5 py-1.5 rounded-full text-[13px] transition-colors border ${
+                className={`px-3.5 py-1.5 rounded-full text-[13px] transition-colors border disabled:opacity-60 ${
                   scene === chip.value
                     ? 'bg-slate-800 text-white border-slate-800'
                     : 'bg-white/60 text-slate-600 border-stone-200 hover:border-stone-300'
@@ -102,12 +135,23 @@ function HomePage() {
             ))}
           </div>
 
+          {/* Error */}
+          {error && <p className="mt-5 text-[13px] text-amber-700 px-1">{error}</p>}
+
           {/* Submit */}
           <button
             onClick={handleSubmit}
-            className="mt-8 w-full py-3.5 rounded-2xl bg-slate-800 text-white font-medium hover:bg-slate-900 transition-colors"
+            disabled={isGenerating}
+            className="mt-8 w-full py-3.5 rounded-2xl bg-slate-800 text-white font-medium hover:bg-slate-900 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
           >
-            生成冷静卡
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                正在生成冷静卡…
+              </>
+            ) : (
+              '生成冷静卡'
+            )}
           </button>
 
           {/* Footer note */}

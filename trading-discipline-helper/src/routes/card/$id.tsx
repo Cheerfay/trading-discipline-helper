@@ -1,6 +1,14 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, ChevronDown, Trash2 } from 'lucide-react';
-import { getCardById, deleteCard, SCENE_LABELS, type CalmStatus } from '@/lib/trading';
+import { ArrowLeft, ChevronDown, Trash2, Loader2 } from 'lucide-react';
+import {
+  getCardById,
+  deleteCard,
+  updateCard,
+  SCENE_LABELS,
+  type CalmStatus,
+  type CalmCard,
+} from '@/lib/trading';
+import { apiPost, ApiError } from '@/lib/api-client';
 import { useState, useEffect } from 'react';
 
 // Status visuals — muted, never alarming. No high-saturation red/green.
@@ -17,6 +25,10 @@ function CardDetailPage() {
   const [card, setCard] = useState(getCardById(id));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
+  // Optional position-info supplement
+  const [positionInput, setPositionInput] = useState('');
+  const [refining, setRefining] = useState(false);
+  const [refineError, setRefineError] = useState<string | null>(null);
 
   useEffect(() => {
     setCard(getCardById(id));
@@ -43,6 +55,41 @@ function CardDetailPage() {
   const handleDelete = () => {
     deleteCard(id);
     navigate({ to: '/history' });
+  };
+
+  // Merge the supplemented position info with the original thought and
+  // regenerate a fresh card in place (same id, same list position).
+  const handleRefine = async () => {
+    if (!card || !positionInput.trim()) return;
+    setRefining(true);
+    setRefineError(null);
+
+    const input = {
+      type: card.type,
+      symbol: card.symbol,
+      thoughts: card.userThought,
+      emotions: [],
+      plannedAmount: '',
+      currentPositionRatio: positionInput.trim(),
+      maxLossTolerance: '',
+      originalPlan: '',
+      focusChecks: [],
+      extraAnswers: { 仓位补充: positionInput.trim() },
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      const next: CalmCard = await apiPost('/api/trading/generate-report', input);
+      // Keep the original id so the list position and the URL stay stable.
+      const merged: CalmCard = { ...next, id: card.id, needsPositionInfo: false };
+      updateCard(card.id, merged);
+      setCard(merged);
+      setPositionInput('');
+      setRefining(false);
+    } catch (err) {
+      setRefining(false);
+      setRefineError(err instanceof ApiError ? err.message : '更新失败，请稍后重试');
+    }
   };
 
   const statusStyle = STATUS_STYLE[card.calmStatus] ?? STATUS_STYLE.pause_first;
@@ -126,6 +173,39 @@ function CardDetailPage() {
             </div>
           )}
         </div>
+
+        {/* ===== Optional position supplement (shown only when the card
+             would be more accurate with position info) ===== */}
+        {card.needsPositionInfo && (
+          <div className="mt-4 p-5 rounded-[20px] bg-[#FAFAF7] border border-stone-200/70">
+            <p className="text-[14px] text-slate-600 leading-relaxed mb-3">
+              想让我看得更准一点？用一句话告诉我：这只现在占你多少、这次大概想动多少。
+            </p>
+            <input
+              type="text"
+              value={positionInput}
+              onChange={(e) => setPositionInput(e.target.value)}
+              placeholder="例如：现在占 20%，这次想再加 10 万"
+              disabled={refining}
+              className="w-full px-4 py-3 rounded-[16px] bg-white border border-stone-200/80 focus:border-slate-300 outline-none transition-colors text-[15px] placeholder:text-slate-400 disabled:opacity-60"
+            />
+            {refineError && <p className="mt-2 text-[13px] text-amber-700">{refineError}</p>}
+            <button
+              onClick={handleRefine}
+              disabled={refining || !positionInput.trim()}
+              className="mt-3 w-full py-2.5 rounded-2xl bg-slate-800 text-white text-[15px] font-medium hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            >
+              {refining ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  正在重新看…
+                </>
+              ) : (
+                '让卡片更准一点'
+              )}
+            </button>
+          </div>
+        )}
 
         {/* ===== Collapsed detail ===== */}
         <div className="mt-5">

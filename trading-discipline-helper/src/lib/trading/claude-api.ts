@@ -144,6 +144,8 @@ export function buildPrompt(input: any): ClaudeMessage[] {
   prompt += `
 请生成一张「冷静卡」，按下面的 JSON 结构输出。**先想清楚 emotionalOpening 和 coreInsight，再填其余字段**——首屏内容最重要。
 
+用户可能只写了一句话、信息不全（标的、金额、仓位都可能没填）。这很正常——**不要因为信息少就拒绝生成或要求补充**，用你手上的信息尽力生成一张有价值的卡。情绪和纪律的判断本来就不依赖精确数字。提不到具体标的时，用"这次操作""这只标的"这类泛称即可。
+
 \`\`\`json
 {
   "emotionalOpening": "情绪安抚段，2-3句。先接住用户的情绪（承认这种冲动/后悔/害怕错过很正常），再温和提醒不要马上用交易回应情绪。像朋友说话。",
@@ -152,6 +154,7 @@ export function buildPrompt(input: any): ClaudeMessage[] {
   "oneAction": "一个最关键、最具体、现在就能做的冷静动作。只给一个，不要列一堆。例如：'先等一个完整交易日，明天同一时间重新写一次买入理由，如果仍然成立再评估。'",
   "selfCheckQuestions": ["3个自查问题，每个一句话，简短。引导用户分清情绪和计划。"],
   "lesson": "仅当场景是'卖飞了'或'追高亏了'这类复盘场景时，给一句可以带走的提醒；其他场景留空字符串。",
+  "needsPositionInfo": "布尔值。如果用户没有提供仓位信息（这只占多少、这次想动多少），而这又是买入/卖出/加仓/割肉这类仓位会影响判断的场景，填 true，表示如果用户愿意补充仓位，卡片能更准；否则 false。",
   "detail": {
     "emotionAnalysis": [{ "label": "情绪/偏差名称", "explanation": "一句温和的解释" }],
     "scores": {
@@ -167,6 +170,7 @@ export function buildPrompt(input: any): ClaudeMessage[] {
 
 注意：
 - calmStatus 与评分大致对应：impulseRisk≥80 或 reasonQuality≤30 → strong_pause；impulseRisk≥60 → pause_first；复盘场景（卖飞/追高）优先 review_not_trade。
+- 信息不足时，positionRisk 可以给一个保守的中性估计，不要因此降低整张卡的价值。
 - detail 里的内容是默认折叠的，可以稍详细，但 risks 和 nextActions 各不超过 4 条。
 - 只返回 JSON，不要任何额外文字。`;
 

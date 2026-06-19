@@ -117,6 +117,10 @@ const generateCardFn = createServerFn()
           ? parsed.selfCheckQuestions.slice(0, 3)
           : [],
         lesson: parsed.lesson || '',
+        // Trust the model's flag, but only when the user truly gave no position
+        // info — never re-ask if they already told us.
+        needsPositionInfo:
+          parsed.needsPositionInfo === true && !data.currentPositionRatio && !data.plannedAmount,
         detail: {
           emotionAnalysis: Array.isArray(parsed.detail?.emotionAnalysis)
             ? parsed.detail.emotionAnalysis

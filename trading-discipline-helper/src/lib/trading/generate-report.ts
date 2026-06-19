@@ -307,6 +307,11 @@ export function generateCalmCard(input: TradeCardInput): CalmCard {
     oneAction: generateOneAction(input, scores),
     selfCheckQuestions: generateSelfCheckQuestions(input),
     lesson: generateLesson(input),
+    // Ask for position info only when the user hasn't given any and the scene
+    // is one where position actually matters (not pure-review scenes).
+    needsPositionInfo:
+      !input.currentPositionRatio &&
+      (input.type === 'buy' || input.type === 'add' || input.type === 'sell' || input.type === 'cut'),
     detail: {
       emotionAnalysis: generateEmotionAnalysis(input),
       scores,

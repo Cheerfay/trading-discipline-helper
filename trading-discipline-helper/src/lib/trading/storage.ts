@@ -40,3 +40,11 @@ export function deleteCard(id: string): void {
   const filtered = getCards().filter(c => c.id !== id);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
 }
+
+// Replace a card in place (keeps its position in the list). Used when the
+// user supplements position info and the card is regenerated.
+export function updateCard(id: string, next: CalmCard): void {
+  if (typeof window === 'undefined') return;
+  const cards = getCards().map(c => (c.id === id ? next : c));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+}
