@@ -1,8 +1,10 @@
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { saveCard, type Scene, type CalmCard } from '@/lib/trading';
 import { apiPost, ApiError } from '@/lib/api-client';
+
+const DRAFT_KEY = 'calm_card_home_draft';
 
 const SCENE_CHIPS: { value: Scene; label: string }[] = [
   { value: 'buy', label: '想买入' },
@@ -30,6 +32,29 @@ function HomePage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Restore a draft saved before navigating away (e.g. browser back button).
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (typeof d.thoughts === 'string') setThoughts(d.thoughts);
+        if (d.scene) setScene(d.scene);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Persist the draft as the user types/picks, so back navigation keeps it.
+  useEffect(() => {
+    if (!thoughts && !scene) {
+      sessionStorage.removeItem(DRAFT_KEY);
+      return;
+    }
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ thoughts, scene }));
+  }, [thoughts, scene]);
+
   const handleSubmit = async () => {
     if (!hasRealContent(thoughts, scene)) {
       setHint(true);
@@ -55,6 +80,7 @@ function HomePage() {
     try {
       const card: CalmCard = await apiPost('/api/trading/generate-report', input);
       saveCard(card);
+      sessionStorage.removeItem(DRAFT_KEY); // generated successfully — clear draft
       setIsGenerating(false);
       navigate({ to: '/card/$id', params: { id: card.id } });
     } catch (err) {

@@ -94,6 +94,16 @@ function CardDetailPage() {
 
   const statusStyle = STATUS_STYLE[card.calmStatus] ?? STATUS_STYLE.pause_first;
 
+  // Scene-aware supplement copy + placeholder. "Buy/add" users may be flat or
+  // lightly held, so don't presume they hold it; "sell/cut" users do hold it.
+  const buyLike = card.type === 'buy' || card.type === 'add';
+  const positionPrompt = buyLike
+    ? '想让我看得更准一点？用一句话说说你的仓位情况——比如目前空仓、或这只已经占了多少，这次大概想动多少。'
+    : '想让我看得更准一点？用一句话告诉我：这只现在占你多少，这次大概想动多少。';
+  const positionPlaceholder = buyLike
+    ? '例如：目前空仓，想先买 10 万试试'
+    : '例如：现在占 20%，这次想卖一半';
+
   return (
     <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
       {/* Header */}
@@ -179,13 +189,13 @@ function CardDetailPage() {
         {card.needsPositionInfo && (
           <div className="mt-4 p-5 rounded-[20px] bg-[#FAFAF7] border border-stone-200/70">
             <p className="text-[14px] text-slate-600 leading-relaxed mb-3">
-              想让我看得更准一点？用一句话告诉我：这只现在占你多少、这次大概想动多少。
+              {positionPrompt}
             </p>
             <input
               type="text"
               value={positionInput}
               onChange={(e) => setPositionInput(e.target.value)}
-              placeholder="例如：现在占 20%，这次想再加 10 万"
+              placeholder={positionPlaceholder}
               disabled={refining}
               className="w-full px-4 py-3 rounded-[16px] bg-white border border-stone-200/80 focus:border-slate-300 outline-none transition-colors text-[15px] placeholder:text-slate-400 disabled:opacity-60"
             />
