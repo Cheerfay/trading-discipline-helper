@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { createServerFn } from '@tanstack/react-start';
 import { respData, respErr } from '@/lib/resp';
 import { buildPrompt, CALM_CARD_SYSTEM_PROMPT } from '@/lib/trading/claude-api';
 import { callLLM } from '@/lib/trading/llm';
@@ -36,111 +35,109 @@ function deriveStatus(input: TradeCardInput, scores: any): CalmStatus {
   return 'can_think_but_wait';
 }
 
-const generateCardFn = createServerFn()
-  .validator((data: TradeCardInput) => data)
-  .handler(async ({ data }) => {
-    if (
-      hasUnsupportedTradingInput(
-        data.thoughts,
-        data.symbol,
-        data.plannedAmount,
-        data.currentPositionRatio,
-        data.maxLossTolerance,
-        data.originalPlan,
-        data.extraAnswers
-      )
-    ) {
-      return respErr(UNSUPPORTED_INPUT_MESSAGE);
-    }
+async function generateCard(data: TradeCardInput) {
+  if (
+    hasUnsupportedTradingInput(
+      data.thoughts,
+      data.symbol,
+      data.plannedAmount,
+      data.currentPositionRatio,
+      data.maxLossTolerance,
+      data.originalPlan,
+      data.extraAnswers
+    )
+  ) {
+    return respErr(UNSUPPORTED_INPUT_MESSAGE);
+  }
 
-    const { config, error: configError } = resolveLLMConfig();
-    if (!config) {
-      return respErr(configError || 'LLM not configured');
-    }
+  const { config, error: configError } = resolveLLMConfig();
+  if (!config) {
+    return respErr(configError || 'LLM not configured');
+  }
 
+  try {
+    const messages = buildPrompt(data);
+    const response = await callLLM(config, CALM_CARD_SYSTEM_PROMPT, messages);
+
+    let parsed: any;
     try {
-      const messages = buildPrompt(data);
-      const response = await callLLM(config, CALM_CARD_SYSTEM_PROMPT, messages);
-
-      let parsed: any;
-      try {
-        const jsonMatch = response.match(/\{[\s\S]*\}/);
-        parsed = JSON.parse(jsonMatch ? jsonMatch[0] : response);
-      } catch {
-        console.error('Failed to parse LLM response:', response);
-        return respErr('Failed to parse AI response');
-      }
-
-      if (!parsed.headline && !parsed.emotionalOpening && !parsed.coreInsight) {
-        console.error('Invalid response structure:', parsed);
-        return respErr('Invalid AI response structure');
-      }
-
-      const scores = {
-        impulseRisk: parsed.detail?.scores?.impulseRisk ?? 50,
-        positionRisk: parsed.detail?.scores?.positionRisk ?? 50,
-        reasonQuality: parsed.detail?.scores?.reasonQuality ?? 50,
-      };
-
-      const calmStatus: CalmStatus = VALID_STATUSES.includes(parsed.calmStatus)
-        ? parsed.calmStatus
-        : deriveStatus(data, scores);
-
-      const card: CalmCard = {
-        id: crypto.randomUUID(),
-        type: data.type,
-        symbol: data.symbol,
-        userThought: data.thoughts,
-        // headline is the first-screen lead; fall back to joining the two
-        // supporting fields if the model didn't produce it.
-        headline:
-          parsed.headline ||
-          [parsed.emotionalOpening, parsed.coreInsight].filter(Boolean).join(' '),
-        emotionalOpening: parsed.emotionalOpening || '',
-        coreInsight: parsed.coreInsight || '',
-        calmStatus,
-        calmStatusText: STATUS_TEXT[calmStatus],
-        oneAction: parsed.oneAction || '先离开行情页面 30 分钟，回来后如果还想操作，再写下一个具体理由。',
-        selfCheckQuestions: Array.isArray(parsed.selfCheckQuestions)
-          ? parsed.selfCheckQuestions.slice(0, 3)
-          : [],
-        lesson: parsed.lesson || '',
-        // Trust the model's semantic judgment, but do not ask again after the
-        // user has explicitly supplied position fields in this request.
-        needsPositionInfo:
-          parsed.needsPositionInfo === true &&
-          !data.currentPositionRatio &&
-          !data.plannedAmount,
-        positionInfoReason:
-          parsed.needsPositionInfo === true && typeof parsed.positionInfoReason === 'string'
-            ? parsed.positionInfoReason
-            : '',
-        detail: {
-          emotionAnalysis: Array.isArray(parsed.detail?.emotionAnalysis)
-            ? parsed.detail.emotionAnalysis
-            : [],
-          scores,
-          risks: Array.isArray(parsed.detail?.risks) ? parsed.detail.risks.slice(0, 4) : [],
-          nextActions: Array.isArray(parsed.detail?.nextActions)
-            ? parsed.detail.nextActions.slice(0, 4)
-            : [],
-          disclaimer:
-            '本卡片仅用于投资纪律检查和自我复盘，不构成任何投资建议、买卖建议或收益承诺。所有投资决策应由你独立判断并自行承担风险。',
-        },
-        createdAt: new Date().toISOString(),
-      };
-
-      return respData(card);
-    } catch (error) {
-      console.error('Claude API error:', error);
-      return respErr(error instanceof Error ? error.message : 'Failed to generate card');
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : response);
+    } catch {
+      console.error('Failed to parse LLM response:', response);
+      return respErr('Failed to parse AI response');
     }
-  });
+
+    if (!parsed.headline && !parsed.emotionalOpening && !parsed.coreInsight) {
+      console.error('Invalid response structure:', parsed);
+      return respErr('Invalid AI response structure');
+    }
+
+    const scores = {
+      impulseRisk: parsed.detail?.scores?.impulseRisk ?? 50,
+      positionRisk: parsed.detail?.scores?.positionRisk ?? 50,
+      reasonQuality: parsed.detail?.scores?.reasonQuality ?? 50,
+    };
+
+    const calmStatus: CalmStatus = VALID_STATUSES.includes(parsed.calmStatus)
+      ? parsed.calmStatus
+      : deriveStatus(data, scores);
+
+    const card: CalmCard = {
+      id: crypto.randomUUID(),
+      type: data.type,
+      symbol: data.symbol,
+      userThought: data.thoughts,
+      // headline is the first-screen lead; fall back to joining the two
+      // supporting fields if the model didn't produce it.
+      headline:
+        parsed.headline ||
+        [parsed.emotionalOpening, parsed.coreInsight].filter(Boolean).join(' '),
+      emotionalOpening: parsed.emotionalOpening || '',
+      coreInsight: parsed.coreInsight || '',
+      calmStatus,
+      calmStatusText: STATUS_TEXT[calmStatus],
+      oneAction: parsed.oneAction || '先离开行情页面 30 分钟，回来后如果还想操作，再写下一个具体理由。',
+      selfCheckQuestions: Array.isArray(parsed.selfCheckQuestions)
+        ? parsed.selfCheckQuestions.slice(0, 3)
+        : [],
+      lesson: parsed.lesson || '',
+      // Trust the model's semantic judgment, but do not ask again after the
+      // user has explicitly supplied position fields in this request.
+      needsPositionInfo:
+        parsed.needsPositionInfo === true &&
+        !data.currentPositionRatio &&
+        !data.plannedAmount,
+      positionInfoReason:
+        parsed.needsPositionInfo === true && typeof parsed.positionInfoReason === 'string'
+          ? parsed.positionInfoReason
+          : '',
+      detail: {
+        emotionAnalysis: Array.isArray(parsed.detail?.emotionAnalysis)
+          ? parsed.detail.emotionAnalysis
+          : [],
+        scores,
+        risks: Array.isArray(parsed.detail?.risks) ? parsed.detail.risks.slice(0, 4) : [],
+        nextActions: Array.isArray(parsed.detail?.nextActions)
+          ? parsed.detail.nextActions.slice(0, 4)
+          : [],
+        disclaimer:
+          '本卡片仅用于投资纪律检查和自我复盘，不构成任何投资建议、买卖建议或收益承诺。所有投资决策应由你独立判断并自行承担风险。',
+      },
+      createdAt: new Date().toISOString(),
+    };
+
+    return respData(card);
+  } catch (error) {
+    console.error('Claude API error:', error);
+    return respErr(error instanceof Error ? error.message : 'Failed to generate card');
+  }
+}
 
 async function POST({ request }: { request: Request }) {
   try {
     const body = await request.json();
-    return await generateCardFn({ data: body });
+    return await generateCard(body);
   } catch (error) {
     return respErr(error instanceof Error ? error.message : 'Invalid request');
   }

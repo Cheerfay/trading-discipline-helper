@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { createServerFn } from '@tanstack/react-start';
 import { respData, respErr } from '@/lib/resp';
 import { callLLM } from '@/lib/trading/llm';
 import { resolveLLMConfig } from '@/lib/trading/llm-config';
@@ -76,47 +75,45 @@ function normalizePositionCard(input: PositionCardInput, parsed: any): PositionC
   };
 }
 
-const generatePositionCardFn = createServerFn()
-  .validator((data: PositionCardInput) => data)
-  .handler(async ({ data }) => {
-    if (!data.positionText?.trim()) {
-      return respErr('请先写下你的仓位情况');
-    }
-    if (hasUnsupportedTradingInput(data.positionText, data.symbol, data.userThought)) {
-      return respErr(UNSUPPORTED_INPUT_MESSAGE);
-    }
+async function generatePositionCard(data: PositionCardInput) {
+  if (!data.positionText?.trim()) {
+    return respErr('请先写下你的仓位情况');
+  }
+  if (hasUnsupportedTradingInput(data.positionText, data.symbol, data.userThought)) {
+    return respErr(UNSUPPORTED_INPUT_MESSAGE);
+  }
 
-    const { config, error: configError } = resolveLLMConfig();
-    if (!config) {
-      return respData(fallbackFromRules(data));
-    }
+  const { config, error: configError } = resolveLLMConfig();
+  if (!config) {
+    return respData(fallbackFromRules(data));
+  }
 
+  try {
+    const summary = analyzePositionRules(data);
+    const messages = buildPositionPrompt(data, summary);
+    const response = await callLLM(config, POSITION_CARD_SYSTEM_PROMPT, messages);
+
+    let parsed: any;
     try {
-      const summary = analyzePositionRules(data);
-      const messages = buildPositionPrompt(data, summary);
-      const response = await callLLM(config, POSITION_CARD_SYSTEM_PROMPT, messages);
-
-      let parsed: any;
-      try {
-        const jsonMatch = response.match(/\{[\s\S]*\}/);
-        parsed = JSON.parse(jsonMatch ? jsonMatch[0] : response);
-      } catch {
-        console.error('Failed to parse position LLM response:', response);
-        return respData(fallbackFromRules(data));
-      }
-
-      return respData(normalizePositionCard(data, parsed));
-    } catch (error) {
-      console.error('Position card generation error:', error);
-      if (configError) console.error(configError);
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : response);
+    } catch {
+      console.error('Failed to parse position LLM response:', response);
       return respData(fallbackFromRules(data));
     }
-  });
+
+    return respData(normalizePositionCard(data, parsed));
+  } catch (error) {
+    console.error('Position card generation error:', error);
+    if (configError) console.error(configError);
+    return respData(fallbackFromRules(data));
+  }
+}
 
 async function POST({ request }: { request: Request }) {
   try {
     const body = await request.json();
-    return await generatePositionCardFn({ data: body });
+    return await generatePositionCard(body);
   } catch (error) {
     return respErr(error instanceof Error ? error.message : 'Invalid request');
   }

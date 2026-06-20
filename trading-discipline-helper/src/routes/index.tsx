@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { Info, Loader2 } from 'lucide-react';
 import { saveCard, type Scene, type CalmCard } from '@/lib/trading';
 import { apiPost, ApiError } from '@/lib/api-client';
@@ -59,7 +59,8 @@ function HomePage() {
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ thoughts, scene }));
   }, [thoughts, scene]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
     if (!hasRealContent(thoughts, scene)) {
       setHint(true);
       return;
@@ -69,6 +70,7 @@ function HomePage() {
       setError(UNSUPPORTED_INPUT_MESSAGE);
       return;
     }
+    setHint(false);
     setIsGenerating(true);
     setError(null);
 
@@ -133,7 +135,7 @@ function HomePage() {
             </section>
 
             {/* Main input */}
-            <section className="brake-workbench w-full rounded-[22px] p-4 sm:p-5 lg:p-6">
+            <form onSubmit={handleSubmit} className="brake-workbench w-full rounded-[22px] p-4 sm:p-5 lg:p-6">
               <div className="brake-input rounded-[17px] p-5">
                 <textarea
                   value={thoughts}
@@ -169,7 +171,7 @@ function HomePage() {
                     className={`px-3.5 py-1.5 rounded-full text-[13px] transition-colors border disabled:opacity-60 ${
                       scene === chip.value
                         ? 'bg-[#0877c7] text-white border-[#0877c7] shadow-[0_0_0_2px_rgba(8,119,199,0.1)]'
-                        : 'bg-[#e2f3ff] text-[#075b96] border-[#7ec5f2]/70 shadow-[0_1px_8px_rgba(8,119,199,0.08)] hover:border-[#2582be]/55 hover:bg-[#d6efff] hover:text-[#064f84]'
+                        : 'bg-white/72 text-[#075b96] border-dashed border-[#7ec5f2]/80 shadow-[0_2px_10px_rgba(8,119,199,0.04)] hover:border-solid hover:border-[#2582be]/65 hover:bg-white hover:text-[#064f84] active:scale-[0.98]'
                     }`}
                   >
                     {chip.label}
@@ -182,7 +184,7 @@ function HomePage() {
 
               {/* Submit */}
               <button
-                onClick={handleSubmit}
+                type="submit"
                 disabled={isGenerating}
                 className="brake-primary mt-7 w-full py-3.5 rounded-xl text-white font-medium disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
@@ -203,7 +205,7 @@ function HomePage() {
                   仅用于投资纪律检查与自我复盘，不预测涨跌，不提供买卖建议。记录只保存在当前设备。
                 </span>
               </p>
-            </section>
+            </form>
           </div>
         </div>
       </main>

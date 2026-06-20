@@ -182,15 +182,19 @@ function CardDetailPage() {
             <Link to="/" className="p-2 -ml-2 hover:bg-white/10 rounded-lg transition-colors shrink-0">
               <ArrowLeft className="w-5 h-5 text-white drop-shadow-[0_1px_8px_rgba(5,54,99,0.2)]" />
             </Link>
-            <div className="min-w-0">
-              <h1 className="flex items-center gap-2.5 font-semibold text-white leading-tight drop-shadow-[0_1px_8px_rgba(5,54,99,0.24)]">
-                <img src="/logo.svg" alt="" className="h-6 w-6 rounded-lg shadow-[0_6px_16px_rgba(5,54,99,0.2)]" />
+            <div className="flex items-center gap-2.5 min-w-0">
+              <img
+                src="/logo.svg"
+                alt=""
+                className="h-6 w-6 rounded-lg shadow-[0_6px_16px_rgba(5,54,99,0.2)] shrink-0"
+              />
+              <h1 className="font-semibold text-white leading-tight drop-shadow-[0_1px_8px_rgba(5,54,99,0.24)] shrink-0">
                 冷静卡
               </h1>
-              <p className="text-[12px] text-white/78 truncate">
+              <span className="min-w-0 truncate rounded-full border border-white/18 bg-white/10 px-2.5 py-1 text-[12px] text-white/78">
                 {SCENE_LABELS[card.type]}
                 {card.symbol ? ` · ${card.symbol}` : ''}
-              </p>
+              </span>
             </div>
           </div>
           <button
@@ -434,14 +438,7 @@ function CalmCardDetail({
         <div className="mt-5 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
           {card.selfCheckQuestions.length > 0 && (
             <DetailSection title="如果还想继续操作，先问自己 3 个问题">
-              <ol className="space-y-2.5">
-                {card.selfCheckQuestions.map((q, i) => (
-                  <li key={i} className="flex gap-3 text-[15px] text-slate-700 leading-relaxed">
-                    <span className="text-slate-300 font-medium shrink-0">{i + 1}</span>
-                    <span>{q}</span>
-                  </li>
-                ))}
-              </ol>
+              <QuestionList questions={card.selfCheckQuestions} tone="strong" />
             </DetailSection>
           )}
 
@@ -552,14 +549,7 @@ function PositionCardView({ positionCard }: { positionCard: PositionCard }) {
       {positionCard.checkpoints.length > 0 && (
         <div className="mt-5">
           <p className="text-[13px] font-medium text-slate-400 mb-3">再问自己 3 个问题</p>
-          <ol className="space-y-2.5">
-            {positionCard.checkpoints.map((q, i) => (
-              <li key={i} className="flex gap-3 text-[14px] text-slate-600 leading-relaxed">
-                <span className="text-slate-300 font-medium shrink-0">{i + 1}</span>
-                <span>{q}</span>
-              </li>
-            ))}
-          </ol>
+          <QuestionList questions={positionCard.checkpoints} />
         </div>
       )}
 
@@ -599,6 +589,34 @@ function PositionCardView({ positionCard }: { positionCard: PositionCard }) {
         </div>
       )}
     </section>
+  );
+}
+
+function QuestionList({
+  questions,
+  tone = 'muted',
+}: {
+  questions: string[];
+  tone?: 'muted' | 'strong';
+}) {
+  const textClass = tone === 'strong' ? 'text-slate-700' : 'text-slate-600';
+
+  return (
+    <ol className="space-y-2.5">
+      {questions.map((question, i) => (
+        <li
+          key={i}
+          className="grid grid-cols-[1.65rem_minmax(0,1fr)] gap-2.5 rounded-[13px] bg-white/52 px-3 py-2.5"
+        >
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#e4f4ff] text-[12px] font-semibold text-[#0877c7]">
+            {i + 1}
+          </span>
+          <span className={`pt-[1px] text-[14px] sm:text-[15px] leading-[1.72] ${textClass}`}>
+            {question}
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
