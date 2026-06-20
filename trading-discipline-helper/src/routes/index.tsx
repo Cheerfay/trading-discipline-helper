@@ -93,7 +93,7 @@ function HomePage() {
     <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
       {/* Top nav */}
       <header className="px-5 py-4">
-        <div className="max-w-xl mx-auto flex items-center justify-between">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
           <span className="font-medium text-slate-800">交易冷静卡</span>
           <Link
             to="/history"
@@ -105,83 +105,91 @@ function HomePage() {
       </header>
 
       {/* First screen */}
-      <main className="flex-1 flex flex-col justify-center px-5 pb-10">
-        <div className="max-w-xl mx-auto w-full">
-          {/* Title */}
-          <h1 className="text-[2rem] sm:text-4xl font-semibold text-slate-900 leading-tight tracking-tight">
-            少犯一次大错，胜过小赚几次
-          </h1>
-          <p className="mt-4 text-slate-500 leading-relaxed">
-            给冲动交易踩一脚刹车。
-          </p>
-
-          {/* Main input */}
-          <div className="mt-8">
-            <textarea
-              value={thoughts}
-              onChange={(e) => {
-                setThoughts(e.target.value);
-                if (hint) setHint(false);
-              }}
-              placeholder="把你现在真实的想法写下来，比如：我刚卖出一只股票，结果又涨了，很后悔，想买回来……"
-              rows={5}
-              disabled={isGenerating}
-              className="w-full px-5 py-4 rounded-[20px] bg-white border border-stone-200/80 shadow-[0_8px_30px_rgba(15,23,42,0.06)] focus:border-slate-300 focus:ring-0 outline-none transition-colors resize-none text-[15px] leading-relaxed placeholder:text-slate-400 disabled:opacity-60"
-            />
-            <p className="mt-2 text-[13px] text-slate-400 px-1">
-              不用写得很专业，越真实越有帮助。
-            </p>
-            {hint && (
-              <p className="mt-2 text-[13px] text-amber-700 px-1">
-                先写下你现在真实的想法，哪怕只有一句。
+      <main className="flex-1 px-5 pb-10 lg:pb-16">
+        <div className="max-w-6xl mx-auto w-full pt-8 sm:pt-10 lg:pt-16">
+          <div className="grid gap-8 lg:grid-cols-[0.86fr_1.14fr] lg:gap-12 xl:gap-16 items-start">
+            {/* Title */}
+            <section className="max-w-xl">
+              <h1 className="text-[2.25rem] sm:text-[2.8rem] lg:text-[3.45rem] font-semibold text-slate-900 leading-[1.24] tracking-tight">
+                少犯一次大错，
+                <br />
+                胜过小赚几次
+              </h1>
+              <p className="mt-5 text-[16px] text-slate-500 leading-[1.85] max-w-lg">
+                给冲动交易踩一脚刹车。出手前，先过一遍理由、仓位和情绪。
               </p>
-            )}
-          </div>
+            </section>
 
-          {/* Scene chips */}
-          <div className="mt-5 flex flex-wrap gap-2">
-            {SCENE_CHIPS.map((chip) => (
+            {/* Main input */}
+            <section className="w-full rounded-[28px] bg-white/35 border border-stone-200/70 p-4 sm:p-5 lg:p-6">
+              <div className="rounded-[22px] bg-white border border-stone-100 shadow-[0_14px_40px_rgba(15,23,42,0.06)] p-5">
+                <textarea
+                  value={thoughts}
+                  onChange={(e) => {
+                    setThoughts(e.target.value);
+                    if (hint) setHint(false);
+                  }}
+                  placeholder="把你现在真实的想法写下来，比如：我刚卖出一只股票，结果又涨了，很后悔，想买回来……"
+                  rows={7}
+                  disabled={isGenerating}
+                  className="w-full min-h-[190px] px-0 py-0 bg-transparent border-0 focus:ring-0 outline-none resize-none text-[15px] leading-relaxed placeholder:text-slate-400 disabled:opacity-60"
+                />
+              </div>
+
+              <p className="mt-3 px-1 text-[13px] text-slate-400">
+                不用写得很专业，越真实越有帮助。
+              </p>
+
+              {hint && (
+                <p className="mt-2 text-[13px] text-amber-700">
+                  先写下你现在真实的想法，哪怕只有一句。
+                </p>
+              )}
+
+              {/* Scene chips */}
+              <div className="mt-5 flex flex-wrap gap-2">
+                {SCENE_CHIPS.map((chip) => (
+                  <button
+                    key={chip.value}
+                    type="button"
+                    disabled={isGenerating}
+                    onClick={() => setScene(scene === chip.value ? null : chip.value)}
+                    className={`px-3.5 py-1.5 rounded-full text-[13px] transition-colors border disabled:opacity-60 ${
+                      scene === chip.value
+                        ? 'bg-slate-800 text-white border-slate-800'
+                        : 'bg-white text-slate-600 border-stone-200 hover:border-stone-300'
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Error */}
+              {error && <p className="mt-5 text-[13px] text-amber-700 px-1">{error}</p>}
+
+              {/* Submit */}
               <button
-                key={chip.value}
-                type="button"
+                onClick={handleSubmit}
                 disabled={isGenerating}
-                onClick={() => setScene(scene === chip.value ? null : chip.value)}
-                className={`px-3.5 py-1.5 rounded-full text-[13px] transition-colors border disabled:opacity-60 ${
-                  scene === chip.value
-                    ? 'bg-slate-800 text-white border-slate-800'
-                    : 'bg-white/60 text-slate-600 border-stone-200 hover:border-stone-300'
-                }`}
+                className="mt-7 w-full py-3.5 rounded-2xl bg-slate-800 text-white font-medium hover:bg-slate-900 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
-                {chip.label}
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    正在帮你看…
+                  </>
+                ) : (
+                  '先别急，看一眼'
+                )}
               </button>
-            ))}
+
+              {/* Footer note */}
+              <p className="mt-5 text-[12px] text-slate-400 text-center leading-relaxed">
+                仅用于投资纪律检查与自我复盘，不预测涨跌，不提供买卖建议。记录只保存在当前设备。
+              </p>
+            </section>
           </div>
-
-          {/* Error */}
-          {error && <p className="mt-5 text-[13px] text-amber-700 px-1">{error}</p>}
-
-          {/* Submit */}
-          <button
-            onClick={handleSubmit}
-            disabled={isGenerating}
-            className="mt-8 w-full py-3.5 rounded-2xl bg-slate-800 text-white font-medium hover:bg-slate-900 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                正在帮你看…
-              </>
-            ) : (
-              '先别急，看一眼'
-            )}
-          </button>
-
-          {/* Footer note */}
-          <p className="mt-6 text-[13px] text-slate-400 text-center leading-relaxed">
-            仅用于投资纪律检查与自我复盘，不构成投资建议。
-            <br />
-            记录只保存在当前设备的浏览器里。
-          </p>
         </div>
       </main>
     </div>
