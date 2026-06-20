@@ -3,6 +3,10 @@ import { createServerFn } from '@tanstack/react-start';
 import { respData, respErr } from '@/lib/resp';
 import { callLLM } from '@/lib/trading/llm';
 import { resolveLLMConfig } from '@/lib/trading/llm-config';
+import {
+  hasUnsupportedTradingInput,
+  UNSUPPORTED_INPUT_MESSAGE,
+} from '@/lib/trading/input-guard';
 import { buildPositionPrompt, POSITION_CARD_SYSTEM_PROMPT } from '@/lib/trading/position-prompt';
 import {
   analyzePositionRules,
@@ -77,6 +81,9 @@ const generatePositionCardFn = createServerFn()
   .handler(async ({ data }) => {
     if (!data.positionText?.trim()) {
       return respErr('请先写下你的仓位情况');
+    }
+    if (hasUnsupportedTradingInput(data.positionText, data.symbol, data.userThought)) {
+      return respErr(UNSUPPORTED_INPUT_MESSAGE);
     }
 
     const { config, error: configError } = resolveLLMConfig();

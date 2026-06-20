@@ -23,3 +23,12 @@ export function isUnsupportedTradingInput(text: unknown): boolean {
   if (!normalized) return false;
   return UNSUPPORTED_INPUT_PATTERNS.some((pattern) => pattern.test(normalized));
 }
+
+export function hasUnsupportedTradingInput(...values: unknown[]): boolean {
+  return values.some((value) => {
+    if (typeof value === 'string') return isUnsupportedTradingInput(value);
+    if (Array.isArray(value)) return hasUnsupportedTradingInput(...value);
+    if (value && typeof value === 'object') return hasUnsupportedTradingInput(...Object.values(value));
+    return false;
+  });
+}

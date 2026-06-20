@@ -12,6 +12,10 @@ import {
   type PositionHealthStatus,
 } from '@/lib/trading';
 import { apiPost, ApiError } from '@/lib/api-client';
+import {
+  isUnsupportedTradingInput,
+  UNSUPPORTED_INPUT_MESSAGE,
+} from '@/lib/trading/input-guard';
 import { useState, useEffect, useRef } from 'react';
 
 // Status visuals — muted, never alarming. No high-saturation red/green.
@@ -86,6 +90,10 @@ function CardDetailPage() {
   // regenerate a fresh card in place (same id, same list position).
   const handleRefine = async () => {
     if (!card || !positionInput.trim()) return;
+    if (isUnsupportedTradingInput(positionInput)) {
+      setRefineError(UNSUPPORTED_INPUT_MESSAGE);
+      return;
+    }
     setRefining(true);
     setRefineError(null);
 
@@ -119,6 +127,10 @@ function CardDetailPage() {
 
   const handleGeneratePositionCard = async () => {
     if (!card || !positionHealthInput.trim()) return;
+    if (isUnsupportedTradingInput(positionHealthInput)) {
+      setPositionError(UNSUPPORTED_INPUT_MESSAGE);
+      return;
+    }
     setGeneratingPosition(true);
     setPositionError(null);
 

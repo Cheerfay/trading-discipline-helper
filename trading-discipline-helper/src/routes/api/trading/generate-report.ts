@@ -5,7 +5,7 @@ import { buildPrompt, CALM_CARD_SYSTEM_PROMPT } from '@/lib/trading/claude-api';
 import { callLLM } from '@/lib/trading/llm';
 import { resolveLLMConfig } from '@/lib/trading/llm-config';
 import {
-  isUnsupportedTradingInput,
+  hasUnsupportedTradingInput,
   UNSUPPORTED_INPUT_MESSAGE,
 } from '@/lib/trading/input-guard';
 import type { TradeCardInput, CalmCard, CalmStatus } from '@/lib/trading/types';
@@ -39,7 +39,17 @@ function deriveStatus(input: TradeCardInput, scores: any): CalmStatus {
 const generateCardFn = createServerFn()
   .validator((data: TradeCardInput) => data)
   .handler(async ({ data }) => {
-    if (isUnsupportedTradingInput(data.thoughts)) {
+    if (
+      hasUnsupportedTradingInput(
+        data.thoughts,
+        data.symbol,
+        data.plannedAmount,
+        data.currentPositionRatio,
+        data.maxLossTolerance,
+        data.originalPlan,
+        data.extraAnswers
+      )
+    ) {
       return respErr(UNSUPPORTED_INPUT_MESSAGE);
     }
 

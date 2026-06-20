@@ -1,7 +1,7 @@
 # 交易冷静卡 — 项目现状与交接文档
 
 > 这份文档是**自包含**的：新接手者（任何 AI 工具 / 新模型 / 新成员）只要读完这一份 + 看代码，就能掌握产品定位、合规红线、已完成进度、代码结构、如何运行、以及下一步怎么做。
-> 最后更新：2026-06（对应分支 `refactor/v4-focus` 的状态）。
+> 最后更新：2026-06-20（对应分支 `desktop-layout-polish` 的状态）。
 
 ---
 
@@ -67,8 +67,16 @@
 3. **结果页（冷静卡）**：首屏极简 = 状态信号灯 + headline（一段融合"安抚+点破真相"的话，首屏主角）+ 一个冷静动作。其余（3 个自查问题、完整分析、仓位补充）默认折叠。
 4. **可选仓位补充**：仅当模型判断"缺仓位信息会更不准"（且为 buy/sell/add/cut 场景）时，结果页就地浮现一句邀请 + 单行输入，补完原地重新生成。
 5. **历史记录（我的记录）**：localStorage 卡片流。
+6. **输入防护**：首页输入、仓位补充输入、仓位节奏输入都会拦截 prompt 提取 / 越狱 / 要求输出内部规则类输入；前端先拦，后端 API 再兜底。
 
-### 📋 功能 2：仓位健康检查 / 建仓节奏卡（待开发，方案见第 7 节）
+### ✅ 功能 2：仓位节奏卡（MVP 已完成）
+
+已在冷静卡结果页接入第二层检查：
+1. **入口**：冷静卡结果页下方「再深入一层」区域，按钮文案为「看看仓位节奏」。
+2. **输入**：用户可写整体持仓，也可写这次打算动多少；提交按钮为「帮我看看仓位安排」。
+3. **结果**：生成「仓位节奏卡」，只看纪律、集中度、调整节奏和现金余地，不判断具体标的该不该买卖。
+4. **规则层**：仓位比例解析、单票档位、all-in、同主题集中、现金缓冲由代码规则处理；模型只把规则结果转成克制、可读的话。
+5. **展示**：仓位节奏卡生成后自动平滑滚动到卡片顶部；「展开仓位观察分析」展开后自动滚到分析顶部。
 
 ---
 
@@ -83,12 +91,16 @@
 | `src/lib/trading/types.ts` | 所有类型：`Scene`、`CalmStatus`、`CalmCard`（核心对象）、`TradeCardInput`、`CalmCardRecord` |
 | `src/lib/trading/llm.ts` | **统一 LLM 传输层**。`callLLM()` 按 provider 分发到 Anthropic/OpenAI/Gemini，处理各家 API 差异（endpoint/鉴权/system位置/返回结构）。`PROVIDER_DEFAULTS` 存默认模型。`normalizeBase()` 兼容中转 base-url 带不带 `/v1` |
 | `src/lib/trading/claude-api.ts` | **prompt 核心**：`CALM_CARD_SYSTEM_PROMPT`（陪伴者人设 + 合规红线）+ `buildPrompt()`（拼本次上下文 + 输出 JSON schema）。文件名是历史遗留，实际是所有 provider 共用的 prompt |
+| `src/lib/trading/input-guard.ts` | 输入防护：识别 prompt 提取、越狱、要求输出内部规则等非交易输入；首页、结果页和两个生成 API 共用 |
 | `src/lib/trading/generate-report.ts` | 规则版 mock 生成器 `generateCalmCard()`（fallback / 离线用，真实流程走 API）。含场景化文案、评分规则、状态映射 |
+| `src/lib/trading/position-rules.ts` | 仓位节奏规则层：解析用户写出的百分比，判断单票档位、all-in、同主题集中、现金缓冲和缺失信息 |
+| `src/lib/trading/position-prompt.ts` | 仓位节奏卡 prompt：把规则结果交给模型转成自然、合规、克制的话术 |
 | `src/lib/trading/storage.ts` | localStorage：`saveCard`/`getCards`/`getCardById`/`getCardRecords`/`deleteCard`/`updateCard`（原地更新，用于仓位补充重新生成） |
 | `src/routes/index.tsx` | 首页（输入框 + chip + 直接生成 + sessionStorage 暂存草稿，浏览器返回不丢） |
-| `src/routes/card/$id.tsx` | 结果页（首屏极简卡 + 折叠分析 + 可选仓位补充） |
-| `src/routes/history.tsx` | 历史记录页 |
+| `src/routes/card/$id.tsx` | 结果页（首屏极简卡 + 折叠分析 + 可选仓位补充 + 仓位节奏卡入口与展示） |
+| `src/routes/history.tsx` | 历史记录页，列表里展示用户当时问了什么，进入详情可看对应冷静卡/仓位节奏卡 |
 | `src/routes/api/trading/generate-report.ts` | 服务端 API：解析 provider 配置 → 调 `callLLM` → 解析 JSON → 组装 `CalmCard`。含各种 fallback 和 needsPositionInfo 的硬保护（复盘场景永不触发） |
+| `src/routes/api/trading/generate-position-card.ts` | 服务端 API：生成仓位节奏卡。先跑规则层，再调用 LLM 输出卡片文案；LLM 不可改写规则结论 |
 | `src/config/index.ts` | env 配置（LLM provider/model/key/baseURL 等） |
 
 ### 数据流
@@ -96,6 +108,14 @@
 首页输入 → POST /api/trading/generate-report → resolveLLMConfig() 选 provider
 → buildPrompt() 拼 prompt → callLLM() 调对应大模型 → 解析 JSON → CalmCard
 → 前端 saveCard() 存 localStorage → 跳转 /card/$id 展示
+```
+
+仓位节奏卡数据流：
+```
+结果页仓位输入 → POST /api/trading/generate-position-card
+→ analyzePositionRules() 解析/分层 → buildPositionPrompt() 拼 prompt
+→ callLLM() 生成卡片话术 → normalizePositionCard() 合并规则结果
+→ attachPositionCard() 挂到原冷静卡 → 结果页展示
 ```
 
 ---
@@ -141,22 +161,26 @@ pnpm build        # 改动后务必验证构建通过
 - **UI 整体打磨留到功能 2 之后**：当前视觉是克制风（背景 #F7F5F0、大圆角 24px、轻阴影、移动优先），但"整体精修"特意推迟，因为功能 2 会引入新卡片，届时统一对齐视觉避免返工。
 - **headline 依赖输入质量**：用户写得越具体，卡越惊艳；写得模糊则退回通用安抚。这是有意为之（正向引导用户多说）。
 - **prompt 是单条 user message + system**：未用强制 JSON tool 模式，靠正则提取 `{...}`，偶发解析失败已有 fallback。后续可考虑各家的 JSON mode 进一步加固。
+- **输入防护仍是轻量层**：目前通过规则拦截 prompt 提取、越狱和要求输出内部规则等明显非交易输入；它是产品兜底，不是完整安全沙箱。后续可根据测试样本继续扩充，但要避免误伤真实交易表达。
+- **仓位节奏卡仍是 MVP**：已能做单票/集中度/现金余地检查，但还没有反馈按钮，也没有统计用户是否真的被“刹住”。后续可以加「先不动了 / 再想想但还想操作 / 判断不太准」类反馈闭环。
 
 ---
 
-## 7. 功能 2 完整方案（下一个分支开发）
+## 7. 需求池 / 后续优化方向
 
-**仓位健康检查 / 建仓节奏卡** —— 红线左侧，只做仓位风险/纪律/节奏检查，回答"你打算怎么做，稳不稳"，绝不回答"这只值不值得买"。
+### 高优先级
+- **结果反馈闭环**：在冷静卡和仓位节奏卡后增加反馈按钮，例如「先不动了」「再想想，但还想操作」「判断不太准」。这是判断产品是否真的“刹住冲动”的关键数据。
+- **首页 Web 端继续打磨**：当前已从窄列改为左右布局，但还需继续观察首屏密度、移动端折叠、输入区层级和转化率。
+- **历史记录信息密度**：已补“用户当时问的什么”，后续可继续增强检索/筛选/按场景回看。
 
-- **入口**：不是独立入口，而是冷静卡（功能1）生成后的"深入一层"——结果页可点"看看我的仓位稳不稳"进入。
-- **输入**：自由描述持仓（"我有茅台30%、宁德20%、剩下现金"），模型解析。缺关键信息时**就地渐进式追问**（同页、不跳页，最多 1 次，不够也直接出卡），交互骨架同功能 1。
-- **仓位阈值（硬规则，代码固化，不交给模型）**：单票 <5% 偏轻 · 5-20% 合理 · 20-30% 偏重 · >30% 过度集中。还检查：一次性 all-in 提示分批；多持仓同主题提示"看似分散其实同一风险"。措辞守红线（"偏重/值得注意控制"，不说"该减仓"）。架构同功能 1：**阈值由规则定，话术由模型说**。
-- **联网搜索（三层过滤，默认不搜、该搜才搜）**：
-  1. 意图门槛——只有涉及时效性外部事件（最近暴跌/政策/利空/美联储等）才考虑，纯情绪不搜；
-  2. **模型自己决定**是否需要检索 + 搜什么 query（agentic 触发，非写死关键词）；
-  3. 成本闸——结果缓存、每次最多 1 条取摘要、只用于"理解背景让安抚更准"，**不做个股结论**、不引用研报逻辑去支撑"该不该买"。
-  触发搜索时 UI 给"我看一眼最近的情况…"的等待提示。数据源待定（Tavily 候选）。
-- **降低合规风险**：不收"针对个股建议"的钱（卖的是纪律工具）；不联网取个股数据支撑仓位结论；不靠免责声明免责。
+### 中优先级
+- **仓位节奏卡反馈与解释优化**：继续优化规则解释的柔和度，避免完整阈值表显得生硬，同时保留专业边界。
+- **prompt/输入防护样本库**：收集真实测试中的 prompt 提取、越狱、误触发样本，再决定是否扩展规则。
+- **文案 A/B 测试**：围绕「刹车器」心智、按钮文案、场景 chip 点击率做小步实验。
+
+### 暂缓
+- **联网搜索**：仍可作为后续能力，但不是当前 MVP 核心。即使做，也只用于理解事件背景，不做个股结论或买卖建议支撑。
+- **账号和云端同步**：当前 localStorage 足够验证核心价值；跨设备、付费、长期留存阶段再上账号体系。
 
 ---
 
@@ -165,12 +189,15 @@ pnpm build        # 改动后务必验证构建通过
 | 分支 | 含义 |
 |---|---|
 | `main` | 合并 v4 后 = 当前最新版（功能1完整 + 多模型 + 本文档） |
+| `position-rhythm-card` | 已完成：功能 2 仓位节奏卡 MVP |
+| `card-input-context` | 已完成：结果页和历史记录补充用户当时输入/仓位上下文，优化场景标签 |
+| `desktop-layout-polish` | 当前工作分支：Web 首页布局打磨 + prompt/越狱输入防护 |
 | `redesign/calm-minimal` | 历史：第一次极简改版 |
 | `refactor/v2` | 历史：情绪刹车整体重构 + 多模型切换 |
 | `refactor/v3-simpler` | 历史：一页流程简化（删补充页、直接生成、可选仓位补充） |
 | `refactor/v4-focus` | 历史：结果页首屏聚焦 headline + 内容深度(A/C) + 合规红线加固 + 本文档 |
 
-后续以 `main` 为准开发。功能 2 建议新开分支（如 `feature/position-card`）。
+后续仍以 `main` 为最终稳定分支。当前功能分支确认后再合并回 `main`。
 
 ---
 
@@ -180,5 +207,5 @@ pnpm build        # 改动后务必验证构建通过
 2. 改文案/内容时，读 `src/lib/trading/claude-api.ts` 的 prompt —— 产品的"灵魂"在这里。
 3. 改流程/页面，看 `src/routes/index.tsx` 和 `src/routes/card/$id.tsx`。
 4. 换模型只改 `.env.development`，不改代码（见第 5 节）。
-5. 任何改动后跑 `pnpm build` 验证。
-6. 做功能 2 前，读第 7 节方案。
+5. 任何改动后跑构建验证。本地当前用 `npm run build` 已验证通过；如果环境有 pnpm，也可按模板命令使用 `pnpm build`。
+6. 做后续优化前，先读第 7 节需求池，确认当前优先级。
