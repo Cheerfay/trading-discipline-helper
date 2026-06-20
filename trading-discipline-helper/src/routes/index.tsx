@@ -3,6 +3,10 @@ import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { saveCard, type Scene, type CalmCard } from '@/lib/trading';
 import { apiPost, ApiError } from '@/lib/api-client';
+import {
+  isUnsupportedTradingInput,
+  UNSUPPORTED_INPUT_MESSAGE,
+} from '@/lib/trading/input-guard';
 
 const DRAFT_KEY = 'calm_card_home_draft';
 
@@ -58,6 +62,11 @@ function HomePage() {
   const handleSubmit = async () => {
     if (!hasRealContent(thoughts, scene)) {
       setHint(true);
+      return;
+    }
+    if (isUnsupportedTradingInput(thoughts)) {
+      setHint(false);
+      setError(UNSUPPORTED_INPUT_MESSAGE);
       return;
     }
     setIsGenerating(true);
