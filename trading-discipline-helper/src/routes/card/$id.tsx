@@ -67,11 +67,11 @@ function CardDetailPage() {
     return (
       <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
         <header className="px-5 py-4">
-          <div className="max-w-xl mx-auto">
+          <div className="max-w-6xl mx-auto">
             <span className="font-medium text-slate-800">没有找到这张卡</span>
           </div>
         </header>
-        <main className="flex-1 max-w-xl mx-auto px-5 py-12 w-full text-center">
+        <main className="flex-1 max-w-6xl mx-auto px-5 py-12 w-full text-center">
           <p className="text-slate-600 mb-4">这张冷静卡不存在或已被删除。</p>
           <Link to="/" className="text-slate-800 underline underline-offset-4">
             回到首页
@@ -177,7 +177,7 @@ function CardDetailPage() {
     <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
       {/* Header */}
       <header className="px-5 py-4">
-        <div className="max-w-xl mx-auto flex items-center justify-between">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <Link to="/" className="p-2 -ml-2 hover:bg-black/5 rounded-lg transition-colors shrink-0">
               <ArrowLeft className="w-5 h-5 text-slate-600" />
@@ -200,9 +200,10 @@ function CardDetailPage() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-xl mx-auto px-5 pb-12 w-full">
-        {/* ===== First-screen: minimal — headline + one action + status ===== */}
-        <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgba(15,23,42,0.06)] border border-stone-100 p-6 sm:p-8">
+      <main className="flex-1 max-w-6xl mx-auto px-5 pb-12 w-full">
+        <div className="max-w-3xl mx-auto">
+          {/* ===== First-screen: minimal — headline + one action + status ===== */}
+          <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgba(15,23,42,0.06)] border border-stone-100 p-6 sm:p-8 lg:p-9">
           {/* Status badge */}
           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${statusStyle.bg}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
@@ -237,11 +238,11 @@ function CardDetailPage() {
             showDetail={showDetail}
             onToggle={() => setShowDetail(!showDetail)}
           />
-        </div>
+          </div>
 
-        {/* ===== Optional position supplement (shown when the main card would
-             be more accurate with position info) ===== */}
-        {card.needsPositionInfo && (
+          {/* ===== Optional position supplement (shown when the main card would
+               be more accurate with position info) ===== */}
+          {card.needsPositionInfo && (
           <div className="mt-4 p-5 rounded-[20px] bg-[#FAFAF7] border border-stone-200/70">
             <p className="text-[14px] text-slate-600 leading-relaxed mb-3">
               {positionPrompt}
@@ -270,10 +271,10 @@ function CardDetailPage() {
               )}
             </button>
           </div>
-        )}
+          )}
 
-        {/* ===== Position health card: the deeper second-layer check ===== */}
-        <div ref={positionSectionRef} className="mt-4 scroll-mt-4">
+          {/* ===== Position health card: the deeper second-layer check ===== */}
+          <div ref={positionSectionRef} className="mt-4 scroll-mt-4 lg:scroll-mt-6">
           {card.positionCard ? (
             <PositionCardView positionCard={card.positionCard} />
           ) : (
@@ -331,6 +332,7 @@ function CardDetailPage() {
               )}
             </div>
           )}
+          </div>
         </div>
       </main>
 

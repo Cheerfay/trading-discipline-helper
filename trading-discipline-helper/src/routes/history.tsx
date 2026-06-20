@@ -45,7 +45,7 @@ function HistoryPage() {
     <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
       {/* Header */}
       <header className="px-5 py-4">
-        <div className="max-w-xl mx-auto flex items-center gap-3">
+        <div className="max-w-6xl mx-auto flex items-center gap-3">
           <Link to="/" className="p-2 -ml-2 hover:bg-black/5 rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </Link>
@@ -53,14 +53,11 @@ function HistoryPage() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-xl mx-auto px-5 pb-12 w-full">
+      <main className="flex-1 max-w-6xl mx-auto px-5 pb-12 w-full">
         {records.length === 0 ? (
-          <div className="text-center py-20">
-            <p className="text-slate-500 leading-[1.9]">
-              还没有冷静记录。
-              <br />
-              下次很想操作时，先来这里停 30 秒。
-            </p>
+          <div className="max-w-xl mx-auto text-center py-20">
+            <h1 className="text-[28px] font-semibold text-slate-900 mb-3">还没有冷静记录</h1>
+            <p className="text-slate-500 leading-[1.9]">下次很想操作时，先来这里停 30 秒。</p>
             <Link
               to="/"
               className="inline-flex items-center mt-6 px-6 py-3 bg-slate-800 text-white rounded-2xl hover:bg-slate-900 transition-colors"
@@ -70,10 +67,23 @@ function HistoryPage() {
           </div>
         ) : (
           <>
-            <p className="text-[13px] text-slate-400 leading-relaxed mb-5 px-1">
-              这些不是交易建议，是你每次上头前留下的刹车痕迹。
-            </p>
-            <div className="space-y-3">
+            <div className="mb-6 rounded-[24px] bg-white/45 border border-stone-200/70 px-5 py-5 sm:px-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h1 className="text-[26px] sm:text-[30px] font-semibold text-slate-900 leading-tight">
+                    冷静记录
+                  </h1>
+                  <p className="mt-2 text-[14px] text-slate-500 leading-relaxed">
+                    这些不是交易建议，是你每次上头前留下的刹车痕迹。
+                  </p>
+                </div>
+                <div className="text-[13px] text-slate-400">
+                  共 {records.length} 条
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {records.map((record) => {
                 const style = STATUS_STYLE[record.calmStatus] ?? STATUS_STYLE.pause_first;
                 return (
@@ -81,7 +91,7 @@ function HistoryPage() {
                     key={record.id}
                     to="/card/$id"
                     params={{ id: record.id }}
-                    className="block bg-white rounded-[20px] border border-stone-100 shadow-[0_8px_30px_rgba(15,23,42,0.04)] p-5 hover:border-stone-200 transition-colors"
+                    className="flex min-h-[230px] flex-col bg-white rounded-[20px] border border-stone-100 shadow-[0_8px_30px_rgba(15,23,42,0.04)] p-5 hover:border-stone-200 hover:shadow-[0_12px_34px_rgba(15,23,42,0.06)] transition-all"
                   >
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <span className="text-[13px] text-slate-400">
@@ -112,10 +122,12 @@ function HistoryPage() {
                       </p>
                     )}
 
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full ${style.bg}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
-                      <span className={`text-[12px] font-medium ${style.text}`}>{record.calmStatusText}</span>
-                    </span>
+                    <div className="mt-auto pt-2">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full ${style.bg}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                        <span className={`text-[12px] font-medium ${style.text}`}>{record.calmStatusText}</span>
+                      </span>
+                    </div>
                   </Link>
                 );
               })}
