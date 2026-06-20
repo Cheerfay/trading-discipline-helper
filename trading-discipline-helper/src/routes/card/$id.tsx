@@ -147,8 +147,8 @@ function CardDetailPage() {
 
   const statusStyle = STATUS_STYLE[card.calmStatus] ?? STATUS_STYLE.pause_first;
 
-  // Scene-aware supplement copy + placeholder. "Buy/add" users may be flat or
-  // lightly held, so don't presume they hold it; "sell/cut" users do hold it.
+  // Scene-aware supplement copy + placeholder. Buy/add users may be flat or
+  // lightly held, so don't presume they hold it; take-profit/cut users do hold it.
   const buyLike = card.type === 'buy' || card.type === 'add';
   const positionPrompt = card.positionInfoReason
     ? `这张卡还缺一个关键背景：${card.positionInfoReason}。补一句后，我会重新看这次操作本身。`
@@ -204,6 +204,10 @@ function CardDetailPage() {
           <p className="text-[18px] sm:text-[19px] text-slate-800 leading-[1.85]">
             {card.headline || [card.emotionalOpening, card.coreInsight].filter(Boolean).join(' ')}
           </p>
+
+          {card.userThought && (
+            <UserInputNote label="你这次问的是" text={card.userThought} className="mt-5" />
+          )}
 
           {/* Lesson (review scenes only) */}
           {card.lesson && (
@@ -354,6 +358,23 @@ function DetailSection({ title, children }: { title: string; children: React.Rea
   );
 }
 
+function UserInputNote({
+  label,
+  text,
+  className = '',
+}: {
+  label: string;
+  text: string;
+  className?: string;
+}) {
+  return (
+    <div className={`rounded-[16px] bg-[#FAFAF7] border border-stone-100 px-4 py-3 ${className}`}>
+      <p className="text-[12px] text-slate-400 mb-1.5">{label}</p>
+      <p className="text-[14px] text-slate-500 leading-[1.7] line-clamp-3">{text}</p>
+    </div>
+  );
+}
+
 function CalmCardDetail({
   card,
   showDetail,
@@ -363,13 +384,29 @@ function CalmCardDetail({
   showDetail: boolean;
   onToggle: () => void;
 }) {
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showDetail) return;
+    requestAnimationFrame(() => {
+      detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [showDetail]);
+
+  const handleCollapse = () => {
+    onToggle();
+    requestAnimationFrame(() => {
+      detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
   return (
-    <div className="mt-6 border-t border-stone-100 pt-5">
+    <div ref={detailRef} className="mt-6 border-t border-stone-100 pt-5 scroll-mt-4">
       <button
         onClick={onToggle}
         className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors"
       >
-        展开冷静卡判断
+        {showDetail ? '收起分析详情' : '展开分析详情'}
         <ChevronDown className={`w-4 h-4 transition-transform ${showDetail ? 'rotate-180' : ''}`} />
       </button>
 
@@ -438,6 +475,17 @@ function CalmCardDetail({
           <p className="text-[12px] text-slate-400 leading-relaxed px-1 pt-1">
             {card.detail.disclaimer}
           </p>
+
+          <div className="flex justify-end pt-1">
+            <button
+              type="button"
+              onClick={handleCollapse}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[13px] font-medium text-slate-500 hover:text-slate-700 hover:bg-stone-100/70 transition-colors"
+            >
+              收起
+              <ChevronDown className="w-3.5 h-3.5 rotate-180" />
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -446,8 +494,16 @@ function CalmCardDetail({
 
 function PositionCardView({ positionCard }: { positionCard: PositionCard }) {
   const [showDetail, setShowDetail] = useState(false);
+  const detailRef = useRef<HTMLDivElement>(null);
   const statusStyle =
     POSITION_STATUS_STYLE[positionCard.status] ?? POSITION_STATUS_STYLE.worth_attention;
+
+  useEffect(() => {
+    if (!showDetail) return;
+    requestAnimationFrame(() => {
+      detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [showDetail]);
 
   return (
     <section className="bg-white rounded-[24px] shadow-[0_8px_30px_rgba(15,23,42,0.05)] border border-stone-100 p-6">
@@ -460,6 +516,10 @@ function PositionCardView({ positionCard }: { positionCard: PositionCard }) {
 
       <h2 className="text-[19px] font-semibold text-slate-900 mt-5 mb-3">仓位节奏卡</h2>
       <p className="text-[16px] text-slate-800 leading-[1.85]">{positionCard.headline}</p>
+
+      {positionCard.positionText && (
+        <UserInputNote label="你补充的仓位是" text={positionCard.positionText} className="mt-5" />
+      )}
 
       <div className="mt-5 p-4 rounded-[18px] bg-[#FAFAF7] border border-stone-100">
         <p className="text-[13px] text-slate-400 mb-2">先看节奏</p>
@@ -494,7 +554,10 @@ function PositionCardView({ positionCard }: { positionCard: PositionCard }) {
       </button>
 
       {showDetail && (
-        <div className="mt-4 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+        <div
+          ref={detailRef}
+          className="mt-4 space-y-3 scroll-mt-4 animate-in fade-in slide-in-from-top-1 duration-200"
+        >
           {positionCard.detail.findings.map((finding, i) => (
             <div key={i} className="rounded-[16px] border border-stone-100 bg-[#FAFAF7] p-4">
               <div className="flex items-center justify-between gap-3">

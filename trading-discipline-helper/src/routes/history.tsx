@@ -34,6 +34,13 @@ function HistoryPage() {
     });
   };
 
+  const summarizeThought = (text?: string) => {
+    if (!text) return '未记录具体想法';
+    const normalized = text.replace(/\s+/g, ' ').trim();
+    if (!normalized) return '未记录具体想法';
+    return normalized.length > 58 ? `${normalized.slice(0, 58)}…` : normalized;
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
       {/* Header */}
@@ -93,7 +100,17 @@ function HistoryPage() {
                       </button>
                     </div>
 
-                    <p className="text-[15px] text-slate-800 leading-relaxed mb-3">{record.coreInsight}</p>
+                    <p className="text-[15px] font-medium text-slate-800 leading-relaxed mb-2">
+                      {summarizeThought(record.userThought)}
+                    </p>
+                    <p className="text-[14px] text-slate-500 leading-relaxed mb-3 line-clamp-2">
+                      {record.coreInsight}
+                    </p>
+                    {record.positionText && (
+                      <p className="text-[13px] text-slate-400 leading-relaxed mb-3 line-clamp-1">
+                        仓位：{summarizeThought(record.positionText)}
+                      </p>
+                    )}
 
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full ${style.bg}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />

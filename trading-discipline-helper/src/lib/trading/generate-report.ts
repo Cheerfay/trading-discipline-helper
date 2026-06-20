@@ -42,8 +42,8 @@ const EMOTION_LABELS: Record<string, string> = {
 
 const SCENE_LABELS: Record<Scene, string> = {
   buy: '想买入',
-  sell: '想卖出',
   add: '想加仓',
+  take_profit: '大涨后想卖',
   cut: '想割肉',
   missed: '卖飞了',
   chase_loss: '追高亏了',
@@ -129,8 +129,8 @@ function generateEmotionalOpening(input: TradeCardInput): string {
       return '看着浮亏一点点扩大，想赶紧了结那种难受，是很真实的感觉。先停一下——我们分清楚，是逻辑坏了，还是只是疼。';
     case 'add':
       return '想再加一点、把成本拉下来，这个念头很常见。先接住它，再看看这是不是因为投资逻辑真的变强了。';
-    case 'sell':
-      return '想赶紧卖掉、结束这份不安，是可以理解的。先别急，我们看看这是计划里的卖出，还是情绪想找个出口。';
+    case 'take_profit':
+      return '涨得太快之后，突然想先跑一点、把利润落袋，是很自然的反应。先别急，我们看看这是计划里的止盈，还是被回撤焦虑推着走。';
     case 'buy':
       return '现在很想买进去的冲动很正常，尤其是在它一直涨的时候。先停一下，我们一起看看这是计划，还是怕错过。';
     default:
@@ -148,8 +148,8 @@ function generateCoreInsight(input: TradeCardInput, scores: Scores): string {
       return '你现在可能是在逃离亏损带来的痛感，而不是基于新的判断退出。';
     case 'add':
       return '这次加仓可能更多是在缓解不甘心，而不是因为投资逻辑变强了。';
-    case 'sell':
-      return '你现在可能是在用卖出结束焦虑，而不是因为原来的投资逻辑已经失效。';
+    case 'take_profit':
+      return '你现在可能不是看错了风险，而是被上涨后的回撤焦虑推着提前离场。';
     case 'buy':
       return '你现在更像是在怕错过，而不是在执行一个清楚的买入计划。';
     default:
@@ -167,8 +167,8 @@ function generateOneAction(input: TradeCardInput, scores: Scores): string {
       return '先区分两个问题：是价格跌了，还是原来的买入逻辑坏了。没分清前，先不要立刻操作。';
     case 'add':
       return '先不要追加仓位。写出一个新增理由，如果只是「摊低成本」，就先暂停。';
-    case 'sell':
-      return '先把原来的卖出条件写出来。如果当前没有触发原条件，先暂停一个交易日。';
+    case 'take_profit':
+      return '先把原来的止盈或减仓条件写出来。如果只是因为涨太快、怕利润回吐，先暂停一个交易日再看。';
     case 'buy':
       return '先不要立刻下单。明天同一时间，重新写一次买入理由，如果还能成立，再考虑是否行动。';
     default:
@@ -202,11 +202,11 @@ function generateSelfCheckQuestions(input: TradeCardInput): string[] {
         '这次加仓是因为逻辑变强了，还是因为不甘心？',
         '加仓之后，这只标的的仓位会不会超出你的上限？',
       ];
-    case 'sell':
+    case 'take_profit':
       return [
-        '如果明天它继续涨，你能接受现在卖掉吗？',
-        '这次卖出，是计划里的，还是想结束焦虑？',
-        '原来的卖出条件，现在真的触发了吗？',
+        '如果明天它继续涨，你能接受今天卖掉一部分吗？',
+        '这次想卖，是原计划里的止盈，还是涨太快之后的回撤焦虑？',
+        '卖出之后，你是更接近自己的仓位纪律，还是只是想缓解不安？',
       ];
     case 'buy':
       return [
@@ -315,7 +315,7 @@ export function generateCalmCard(input: TradeCardInput): CalmCard {
     // is one where position actually matters (not pure-review scenes).
     needsPositionInfo:
       !input.currentPositionRatio &&
-      (input.type === 'buy' || input.type === 'add' || input.type === 'sell' || input.type === 'cut'),
+      (input.type === 'buy' || input.type === 'add' || input.type === 'take_profit' || input.type === 'cut'),
     positionInfoReason: '如果补充当前仓位和这次打算动多少，这张卡对仓位节奏的判断会更贴近你的情况。',
     detail: {
       emotionAnalysis: generateEmotionAnalysis(input),
@@ -336,6 +336,8 @@ export function toCalmCardRecord(card: CalmCard): CalmCardRecord {
     id: card.id,
     type: card.type,
     symbol: card.symbol,
+    userThought: card.userThought || '',
+    positionText: card.positionCard?.positionText,
     coreInsight: card.coreInsight,
     calmStatus: card.calmStatus,
     calmStatusText: card.calmStatusText,

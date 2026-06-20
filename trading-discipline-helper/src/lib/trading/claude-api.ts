@@ -104,8 +104,8 @@ export const CALM_CARD_SYSTEM_PROMPT = `你是「交易冷静卡」里的陪伴�
 export function buildPrompt(input: any): ClaudeMessage[] {
   const sceneLabels: Record<string, string> = {
     buy: '想买入',
-    sell: '想卖出',
     add: '想加仓',
+    take_profit: '大涨后想卖',
     cut: '想割肉',
     missed: '卖飞了，想复盘',
     chase_loss: '追高亏了，想复盘',

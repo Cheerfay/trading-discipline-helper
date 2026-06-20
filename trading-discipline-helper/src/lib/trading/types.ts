@@ -2,7 +2,7 @@
  * Trading Discipline Card - Type Definitions
  */
 
-export type TradeType = 'buy' | 'sell' | 'add' | 'cut' | 'missed' | 'chase_loss';
+export type TradeType = 'buy' | 'add' | 'take_profit' | 'cut' | 'missed' | 'chase_loss';
 
 // Scene includes an "unclear" entry — "说不清，就是想动一下"
 export type Scene = TradeType | 'unclear';
@@ -99,6 +99,8 @@ export interface CalmCardRecord {
   id: string;
   type: Scene;
   symbol: string;
+  userThought: string;
+  positionText?: string;
   coreInsight: string;
   calmStatus: CalmStatus;
   calmStatusText: string;

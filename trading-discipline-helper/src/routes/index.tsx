@@ -8,8 +8,8 @@ const DRAFT_KEY = 'calm_card_home_draft';
 
 const SCENE_CHIPS: { value: Scene; label: string }[] = [
   { value: 'buy', label: '想买入' },
-  { value: 'sell', label: '想卖出' },
   { value: 'add', label: '想加仓' },
+  { value: 'take_profit', label: '大涨后想卖' },
   { value: 'cut', label: '想割肉' },
   { value: 'missed', label: '卖飞了' },
   { value: 'chase_loss', label: '追高亏了' },
@@ -109,9 +109,7 @@ function HomePage() {
         <div className="max-w-xl mx-auto w-full">
           {/* Title */}
           <h1 className="text-[2rem] sm:text-4xl font-semibold text-slate-900 leading-tight tracking-tight">
-            少犯一次大错，
-            <br />
-            胜过小赚几次。
+            少犯一次大错，胜过小赚几次
           </h1>
           <p className="mt-4 text-slate-500 leading-relaxed">
             给冲动交易踩一脚刹车。
