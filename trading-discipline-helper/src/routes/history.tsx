@@ -5,9 +5,9 @@ import { useState, useEffect } from 'react';
 
 const STATUS_STYLE: Record<CalmStatus, { dot: string; text: string; bg: string }> = {
   can_think_but_wait: { dot: 'bg-slate-400', text: 'text-slate-600', bg: 'bg-slate-100' },
-  pause_first: { dot: 'bg-amber-500', text: 'text-amber-800', bg: 'bg-[#FFF7ED]' },
-  strong_pause: { dot: 'bg-orange-600', text: 'text-orange-900', bg: 'bg-orange-50' },
-  review_not_trade: { dot: 'bg-slate-500', text: 'text-slate-700', bg: 'bg-stone-100' },
+  pause_first: { dot: 'bg-sky-500', text: 'text-sky-800', bg: 'bg-sky-100' },
+  strong_pause: { dot: 'bg-[#0877c7]', text: 'text-[#075b96]', bg: 'bg-[#dff2ff]' },
+  review_not_trade: { dot: 'bg-slate-500', text: 'text-slate-700', bg: 'bg-sky-50' },
 };
 
 function HistoryPage() {
@@ -42,42 +42,45 @@ function HistoryPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
+    <div className="brake-page min-h-screen flex flex-col text-slate-900">
       {/* Header */}
-      <header className="px-5 py-4">
+      <header className="brake-nav px-5 py-4">
         <div className="max-w-6xl mx-auto flex items-center gap-3">
-          <Link to="/" className="p-2 -ml-2 hover:bg-black/5 rounded-lg transition-colors">
-            <ArrowLeft className="w-5 h-5 text-slate-600" />
+          <Link to="/" className="p-2 -ml-2 hover:bg-white/10 rounded-lg transition-colors">
+            <ArrowLeft className="w-5 h-5 text-white drop-shadow-[0_1px_8px_rgba(5,54,99,0.2)]" />
           </Link>
-          <span className="font-medium text-slate-800">冷静记录</span>
+          <span className="inline-flex items-center gap-2.5 font-semibold text-white drop-shadow-[0_1px_8px_rgba(5,54,99,0.24)]">
+            <img src="/logo.svg" alt="" className="h-6 w-6 rounded-lg shadow-[0_6px_16px_rgba(5,54,99,0.2)]" />
+            冷静记录
+          </span>
         </div>
       </header>
 
       <main className="flex-1 max-w-6xl mx-auto px-5 pb-12 w-full">
         {records.length === 0 ? (
           <div className="max-w-xl mx-auto text-center py-20">
-            <h1 className="text-[28px] font-semibold text-slate-900 mb-3">还没有冷静记录</h1>
-            <p className="text-slate-500 leading-[1.9]">下次很想操作时，先来这里停 30 秒。</p>
+            <h1 className="text-[28px] font-semibold text-white mb-3">还没有冷静记录</h1>
+            <p className="text-white/86 leading-[1.9] drop-shadow-[0_1px_10px_rgba(5,54,99,0.18)]">下次很想操作时，先来这里停 30 秒。</p>
             <Link
               to="/"
-              className="inline-flex items-center mt-6 px-6 py-3 bg-slate-800 text-white rounded-2xl hover:bg-slate-900 transition-colors"
+              className="brake-primary inline-flex items-center mt-6 px-6 py-3 text-white rounded-xl transition-colors"
             >
               写下现在的想法
             </Link>
           </div>
         ) : (
           <>
-            <div className="mb-6 rounded-[24px] bg-white/45 border border-stone-200/70 px-5 py-5 sm:px-6">
+            <div className="brake-card mb-6 rounded-[22px] px-5 py-5 sm:px-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h1 className="text-[26px] sm:text-[30px] font-semibold text-slate-900 leading-tight">
+                  <h1 className="text-[26px] sm:text-[30px] font-semibold text-black leading-tight">
                     冷静记录
                   </h1>
-                  <p className="mt-2 text-[14px] text-slate-500 leading-relaxed">
+                  <p className="mt-2 text-[14px] text-black/[0.58] leading-relaxed">
                     这些不是交易建议，是你每次上头前留下的刹车痕迹。
                   </p>
                 </div>
-                <div className="text-[13px] text-slate-400">
+                <div className="rounded-full border border-black/10 bg-black/[0.03] px-3 py-1.5 text-[13px] text-black/56">
                   共 {records.length} 条
                 </div>
               </div>
@@ -91,7 +94,7 @@ function HistoryPage() {
                     key={record.id}
                     to="/card/$id"
                     params={{ id: record.id }}
-                    className="flex min-h-[230px] flex-col bg-white rounded-[20px] border border-stone-100 shadow-[0_8px_30px_rgba(15,23,42,0.04)] p-5 hover:border-stone-200 hover:shadow-[0_12px_34px_rgba(15,23,42,0.06)] transition-all"
+                    className="brake-record-card flex min-h-[230px] flex-col rounded-[18px] p-5 transition-all"
                   >
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <span className="text-[13px] text-slate-400">
@@ -103,17 +106,17 @@ function HistoryPage() {
                           e.preventDefault();
                           setDeleteId(record.id);
                         }}
-                        className="p-1.5 -mr-1 hover:bg-black/5 rounded-lg transition-colors text-slate-300 hover:text-slate-500 shrink-0"
+                        className="p-1.5 -mr-1 hover:bg-black/[0.06] rounded-lg transition-colors text-black/25 hover:text-black/55 shrink-0"
                         title="删除"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
 
-                    <p className="text-[15px] font-medium text-slate-800 leading-relaxed mb-2">
+                    <p className="text-[15px] font-semibold text-black leading-relaxed mb-2">
                       {summarizeThought(record.userThought)}
                     </p>
-                    <p className="text-[14px] text-slate-500 leading-relaxed mb-3 line-clamp-2">
+                    <p className="text-[14px] text-black/[0.58] leading-relaxed mb-3 line-clamp-2">
                       {record.coreInsight}
                     </p>
                     {record.positionText && (
@@ -151,7 +154,7 @@ function HistoryPage() {
               </button>
               <button
                 onClick={() => handleDelete(deleteId)}
-                className="flex-1 py-2.5 px-4 bg-slate-800 text-white rounded-2xl hover:bg-slate-900 transition-colors"
+                className="brake-primary flex-1 py-2.5 px-4 text-white rounded-2xl transition-colors"
               >
                 删除
               </button>

@@ -152,3 +152,173 @@
     .animate-drift-a, .animate-drift-b, .animate-drift-c { animation: none !important; }
   }
 }
+
+@layer components {
+  .brake-page {
+    position: relative;
+    overflow-x: hidden;
+    background-color: #7fc5f4;
+    background-image:
+      radial-gradient(ellipse at 17% 48%, rgba(255, 255, 255, 0.28) 0 10%, transparent 31%),
+      radial-gradient(ellipse at 78% 42%, rgba(255, 255, 255, 0.24) 0 9%, transparent 30%),
+      radial-gradient(ellipse at 52% 88%, rgba(255, 255, 255, 0.72) 0 15%, transparent 38%),
+      linear-gradient(180deg, #176fb8 0%, #328bd0 28%, #89c9f4 58%, #f0f9ff 100%);
+    background-size: 820px 440px, 780px 420px, 1080px 520px, 100% 100%;
+    background-position: left -180px top 165px, right -160px top 130px, center bottom -170px, center;
+  }
+
+  .brake-page::before {
+    content: none;
+  }
+
+  .brake-page::after {
+    content: "";
+    position: fixed;
+    top: 52%;
+    left: 50%;
+    z-index: 0;
+    width: min(92vw, 1120px);
+    height: 260px;
+    transform: translate(-50%, -50%);
+    border-radius: 999px;
+    background:
+      radial-gradient(ellipse, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.1) 46%, transparent 72%);
+    pointer-events: none;
+  }
+
+  .brake-page > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .brake-nav {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+    background: linear-gradient(180deg, rgba(8, 73, 126, 0.24), rgba(8, 73, 126, 0.1));
+    backdrop-filter: blur(18px);
+  }
+
+  .brake-workbench {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.78);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(239, 248, 255, 0.76)),
+      #fff;
+    backdrop-filter: blur(18px);
+    box-shadow:
+      0 28px 72px rgba(18, 92, 145, 0.18),
+      0 0 0 1px rgba(255, 255, 255, 0.5);
+  }
+
+  .brake-workbench::before,
+  .brake-card::before {
+    content: none;
+  }
+
+  .brake-workbench::after,
+  .brake-card::after {
+    content: "";
+    position: absolute;
+    inset: 1px;
+    border-radius: inherit;
+    border: 1px solid rgba(8, 90, 145, 0.06);
+    pointer-events: none;
+  }
+
+  .brake-input {
+    border: 1px solid rgba(37, 130, 190, 0.11);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.995), rgba(253, 254, 255, 0.98));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
+      0 8px 24px rgba(25, 116, 182, 0.05);
+  }
+
+  .brake-input textarea {
+    color: #102334;
+  }
+
+  .brake-input textarea::placeholder {
+    color: rgba(16, 52, 78, 0.38);
+  }
+
+  .brake-primary {
+    background: linear-gradient(180deg, #1b9deb, #0877c7);
+    box-shadow:
+      0 16px 34px rgba(5, 104, 178, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  }
+
+  .brake-primary:hover {
+    background: linear-gradient(180deg, #1194e5, #066dbc);
+  }
+
+  .brake-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(244, 251, 255, 0.84)),
+      #fff;
+    backdrop-filter: blur(18px);
+    box-shadow:
+      0 24px 68px rgba(18, 92, 145, 0.17);
+  }
+
+  .brake-workbench .text-stone-500,
+  .brake-card .text-stone-500,
+  .brake-workbench .text-slate-500,
+  .brake-card .text-slate-500 {
+    color: rgba(16, 52, 78, 0.58);
+  }
+
+  .brake-workbench .text-stone-600,
+  .brake-card .text-stone-600,
+  .brake-workbench .text-slate-600,
+  .brake-card .text-slate-600 {
+    color: rgba(16, 52, 78, 0.68);
+  }
+
+  .brake-card .text-stone-950,
+  .brake-card .text-slate-900,
+  .brake-card .text-slate-800,
+  .brake-card .text-stone-800,
+  .brake-workbench .text-stone-800 {
+    color: #102334;
+  }
+
+  .brake-subpanel {
+    border: 1px solid rgba(37, 130, 190, 0.13);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(239, 248, 255, 0.7));
+  }
+
+  .brake-action-box {
+    border-left: 4px solid #0b84d8;
+    background:
+      linear-gradient(90deg, rgba(17, 148, 229, 0.13), rgba(247, 252, 255, 0.92) 46%),
+      #f7fcff;
+  }
+
+  .brake-record-card {
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(244, 251, 255, 0.82));
+    backdrop-filter: blur(16px);
+    box-shadow: 0 14px 38px rgba(18, 92, 145, 0.13);
+  }
+
+  .brake-record-card:hover {
+    border-color: rgba(255, 255, 255, 1);
+    box-shadow: 0 20px 48px rgba(18, 92, 145, 0.18);
+  }
+
+  .metal-hero-title {
+    color: #ffffff;
+    background: none;
+    background-clip: initial;
+    -webkit-background-clip: initial;
+    filter: none;
+    text-shadow: 0 12px 34px rgba(5, 54, 99, 0.3);
+  }
+}

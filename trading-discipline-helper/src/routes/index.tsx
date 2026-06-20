@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Info, Loader2 } from 'lucide-react';
 import { saveCard, type Scene, type CalmCard } from '@/lib/trading';
 import { apiPost, ApiError } from '@/lib/api-client';
 import {
@@ -99,14 +99,17 @@ function HomePage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
+    <div className="brake-page min-h-screen flex flex-col text-slate-900">
       {/* Top nav */}
-      <header className="px-5 py-4">
+      <header className="brake-nav px-5 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <span className="font-medium text-slate-800">交易冷静卡</span>
+          <span className="inline-flex items-center gap-3 font-semibold text-white drop-shadow-[0_1px_8px_rgba(5,54,99,0.24)]">
+            <img src="/logo.svg" alt="" className="h-7 w-7 rounded-lg shadow-[0_6px_16px_rgba(5,54,99,0.22)]" />
+            交易冷静卡
+          </span>
           <Link
             to="/history"
-            className="text-sm text-slate-500 hover:text-slate-800 transition-colors"
+            className="rounded-full border border-white/28 bg-white/10 px-3 py-1.5 text-sm font-medium text-white/95 shadow-[0_1px_10px_rgba(5,54,99,0.08)] hover:border-white/55 hover:bg-white/15 transition-colors"
           >
             我的记录
           </Link>
@@ -119,19 +122,19 @@ function HomePage() {
           <div className="grid gap-8 lg:grid-cols-[0.86fr_1.14fr] lg:gap-12 xl:gap-16 items-start">
             {/* Title */}
             <section className="max-w-xl">
-              <h1 className="text-[2.25rem] sm:text-[2.8rem] lg:text-[3.45rem] font-semibold text-slate-900 leading-[1.24] tracking-tight">
+              <h1 className="metal-hero-title text-[2.15rem] sm:text-[2.7rem] lg:text-[3.2rem] font-bold leading-[1.36]">
                 少犯一次大错，
                 <br />
                 胜过小赚几次
               </h1>
-              <p className="mt-5 text-[16px] text-slate-500 leading-[1.85] max-w-lg">
+              <p className="mt-6 text-[16px] lg:text-[16.5px] font-semibold text-white/90 leading-[1.85] max-w-xl drop-shadow-[0_1px_10px_rgba(5,54,99,0.18)]">
                 给冲动交易踩一脚刹车。出手前，先过一遍理由、仓位和情绪。
               </p>
             </section>
 
             {/* Main input */}
-            <section className="w-full rounded-[28px] bg-white/35 border border-stone-200/70 p-4 sm:p-5 lg:p-6">
-              <div className="rounded-[22px] bg-white border border-stone-100 shadow-[0_14px_40px_rgba(15,23,42,0.06)] p-5">
+            <section className="brake-workbench w-full rounded-[22px] p-4 sm:p-5 lg:p-6">
+              <div className="brake-input rounded-[17px] p-5">
                 <textarea
                   value={thoughts}
                   onChange={(e) => {
@@ -141,16 +144,16 @@ function HomePage() {
                   placeholder="把你现在真实的想法写下来，比如：我刚卖出一只股票，结果又涨了，很后悔，想买回来……"
                   rows={7}
                   disabled={isGenerating}
-                  className="w-full min-h-[190px] px-0 py-0 bg-transparent border-0 focus:ring-0 outline-none resize-none text-[15px] leading-relaxed placeholder:text-slate-400 disabled:opacity-60"
+                  className="w-full min-h-[190px] px-0 py-0 bg-transparent border-0 focus:ring-0 outline-none resize-none text-[15px] leading-relaxed text-stone-800 placeholder:text-[#10344e]/35 disabled:opacity-60"
                 />
               </div>
 
-              <p className="mt-3 px-1 text-[13px] text-slate-400">
+              <p className="mt-3 px-1 text-[13px] text-stone-500">
                 不用写得很专业，越真实越有帮助。
               </p>
 
               {hint && (
-                <p className="mt-2 text-[13px] text-amber-700">
+                <p className="mt-2 text-[13px] text-neutral-700">
                   先写下你现在真实的想法，哪怕只有一句。
                 </p>
               )}
@@ -165,8 +168,8 @@ function HomePage() {
                     onClick={() => setScene(scene === chip.value ? null : chip.value)}
                     className={`px-3.5 py-1.5 rounded-full text-[13px] transition-colors border disabled:opacity-60 ${
                       scene === chip.value
-                        ? 'bg-slate-800 text-white border-slate-800'
-                        : 'bg-white text-slate-600 border-stone-200 hover:border-stone-300'
+                        ? 'bg-[#0877c7] text-white border-[#0877c7] shadow-[0_0_0_2px_rgba(8,119,199,0.1)]'
+                        : 'bg-[#e2f3ff] text-[#075b96] border-[#7ec5f2]/70 shadow-[0_1px_8px_rgba(8,119,199,0.08)] hover:border-[#2582be]/55 hover:bg-[#d6efff] hover:text-[#064f84]'
                     }`}
                   >
                     {chip.label}
@@ -175,13 +178,13 @@ function HomePage() {
               </div>
 
               {/* Error */}
-              {error && <p className="mt-5 text-[13px] text-amber-700 px-1">{error}</p>}
+              {error && <p className="mt-5 text-[13px] text-neutral-700 px-1">{error}</p>}
 
               {/* Submit */}
               <button
                 onClick={handleSubmit}
                 disabled={isGenerating}
-                className="mt-7 w-full py-3.5 rounded-2xl bg-slate-800 text-white font-medium hover:bg-slate-900 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                className="brake-primary mt-7 w-full py-3.5 rounded-xl text-white font-medium disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
                 {isGenerating ? (
                   <>
@@ -194,8 +197,11 @@ function HomePage() {
               </button>
 
               {/* Footer note */}
-              <p className="mt-5 text-[12px] text-slate-400 text-center leading-relaxed">
-                仅用于投资纪律检查与自我复盘，不预测涨跌，不提供买卖建议。记录只保存在当前设备。
+              <p className="mt-5 flex items-center justify-center gap-1.5 text-[12px] text-stone-500 text-center leading-relaxed">
+                <Info className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  仅用于投资纪律检查与自我复盘，不预测涨跌，不提供买卖建议。记录只保存在当前设备。
+                </span>
               </p>
             </section>
           </div>

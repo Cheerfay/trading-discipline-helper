@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, ChevronDown, Trash2, Loader2 } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Info, Trash2, Loader2 } from 'lucide-react';
 import {
   getCardById,
   deleteCard,
@@ -21,16 +21,16 @@ import { useState, useEffect, useRef } from 'react';
 // Status visuals — muted, never alarming. No high-saturation red/green.
 const STATUS_STYLE: Record<CalmStatus, { dot: string; text: string; bg: string }> = {
   can_think_but_wait: { dot: 'bg-slate-400', text: 'text-slate-600', bg: 'bg-slate-100' },
-  pause_first: { dot: 'bg-amber-500', text: 'text-amber-800', bg: 'bg-[#FFF7ED]' },
-  strong_pause: { dot: 'bg-orange-600', text: 'text-orange-900', bg: 'bg-orange-50' },
-  review_not_trade: { dot: 'bg-slate-500', text: 'text-slate-700', bg: 'bg-stone-100' },
+  pause_first: { dot: 'bg-sky-500', text: 'text-sky-800', bg: 'bg-sky-100' },
+  strong_pause: { dot: 'bg-[#0877c7]', text: 'text-[#075b96]', bg: 'bg-[#dff2ff]' },
+  review_not_trade: { dot: 'bg-slate-500', text: 'text-slate-700', bg: 'bg-sky-50' },
 };
 
 const POSITION_STATUS_STYLE: Record<PositionHealthStatus, { dot: string; text: string; bg: string }> = {
   looks_balanced: { dot: 'bg-slate-400', text: 'text-slate-600', bg: 'bg-slate-100' },
-  worth_attention: { dot: 'bg-amber-500', text: 'text-amber-800', bg: 'bg-[#FFF7ED]' },
-  too_concentrated: { dot: 'bg-orange-600', text: 'text-orange-900', bg: 'bg-orange-50' },
-  not_enough_info: { dot: 'bg-slate-500', text: 'text-slate-700', bg: 'bg-stone-100' },
+  worth_attention: { dot: 'bg-sky-500', text: 'text-sky-800', bg: 'bg-sky-100' },
+  too_concentrated: { dot: 'bg-[#0877c7]', text: 'text-[#075b96]', bg: 'bg-[#dff2ff]' },
+  not_enough_info: { dot: 'bg-slate-500', text: 'text-slate-700', bg: 'bg-sky-50' },
 };
 
 function CardDetailPage() {
@@ -65,15 +65,15 @@ function CardDetailPage() {
 
   if (!card) {
     return (
-      <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
-        <header className="px-5 py-4">
+      <div className="brake-page min-h-screen flex flex-col text-slate-900">
+        <header className="brake-nav px-5 py-4">
           <div className="max-w-6xl mx-auto">
-            <span className="font-medium text-slate-800">没有找到这张卡</span>
+            <span className="font-semibold text-white drop-shadow-[0_1px_8px_rgba(5,54,99,0.24)]">没有找到这张卡</span>
           </div>
         </header>
         <main className="flex-1 max-w-6xl mx-auto px-5 py-12 w-full text-center">
-          <p className="text-slate-600 mb-4">这张冷静卡不存在或已被删除。</p>
-          <Link to="/" className="text-slate-800 underline underline-offset-4">
+          <p className="text-white/70 mb-4">这张冷静卡不存在或已被删除。</p>
+          <Link to="/" className="text-white underline underline-offset-4">
             回到首页
           </Link>
         </main>
@@ -174,17 +174,20 @@ function CardDetailPage() {
     '例如：我有茅台 30%、宁德 20%，剩下主要是现金；或者：这只现在占 25%，还想再加一点';
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F7F5F0] text-slate-900">
+    <div className="brake-page min-h-screen flex flex-col text-slate-900">
       {/* Header */}
-      <header className="px-5 py-4">
+      <header className="brake-nav px-5 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <Link to="/" className="p-2 -ml-2 hover:bg-black/5 rounded-lg transition-colors shrink-0">
-              <ArrowLeft className="w-5 h-5 text-slate-600" />
+            <Link to="/" className="p-2 -ml-2 hover:bg-white/10 rounded-lg transition-colors shrink-0">
+              <ArrowLeft className="w-5 h-5 text-white drop-shadow-[0_1px_8px_rgba(5,54,99,0.2)]" />
             </Link>
             <div className="min-w-0">
-              <h1 className="font-medium text-slate-800 leading-tight">冷静卡</h1>
-              <p className="text-[12px] text-slate-400 truncate">
+              <h1 className="flex items-center gap-2.5 font-semibold text-white leading-tight drop-shadow-[0_1px_8px_rgba(5,54,99,0.24)]">
+                <img src="/logo.svg" alt="" className="h-6 w-6 rounded-lg shadow-[0_6px_16px_rgba(5,54,99,0.2)]" />
+                冷静卡
+              </h1>
+              <p className="text-[12px] text-white/78 truncate">
                 {SCENE_LABELS[card.type]}
                 {card.symbol ? ` · ${card.symbol}` : ''}
               </p>
@@ -192,7 +195,7 @@ function CardDetailPage() {
           </div>
           <button
             onClick={() => setShowDeleteConfirm(true)}
-            className="p-2 -mr-2 hover:bg-black/5 rounded-lg transition-colors text-slate-400 hover:text-slate-600 shrink-0"
+            className="p-2 -mr-2 hover:bg-white/10 rounded-lg transition-colors text-white/45 hover:text-white shrink-0"
             title="删除"
           >
             <Trash2 className="w-5 h-5" />
@@ -203,7 +206,7 @@ function CardDetailPage() {
       <main className="flex-1 max-w-6xl mx-auto px-5 pb-12 w-full">
         <div className="max-w-3xl mx-auto">
           {/* ===== First-screen: minimal — headline + one action + status ===== */}
-          <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgba(15,23,42,0.06)] border border-stone-100 p-6 sm:p-8 lg:p-9">
+          <div className="brake-card rounded-[22px] p-6 sm:p-8 lg:p-9">
           {/* Status badge */}
           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${statusStyle.bg}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
@@ -211,10 +214,10 @@ function CardDetailPage() {
           </span>
 
           {/* Title */}
-          <h2 className="text-[22px] font-semibold text-slate-900 mt-5 mb-4">先别急</h2>
+          <h2 className="text-[22px] font-semibold text-stone-950 mt-5 mb-4">先别急</h2>
 
           {/* Headline — the single most important thing on the screen */}
-          <p className="text-[18px] sm:text-[19px] text-slate-800 leading-[1.85]">
+          <p className="text-[18px] sm:text-[19px] text-stone-800 leading-[1.85]">
             {card.headline || [card.emotionalOpening, card.coreInsight].filter(Boolean).join(' ')}
           </p>
 
@@ -224,13 +227,13 @@ function CardDetailPage() {
 
           {/* Lesson (review scenes only) */}
           {card.lesson && (
-            <p className="mt-5 text-[14px] text-slate-500 leading-[1.8] italic">{card.lesson}</p>
+            <p className="mt-5 text-[14px] text-stone-500 leading-[1.8] italic">{card.lesson}</p>
           )}
 
           {/* One action */}
-          <div className="mt-7 p-5 rounded-[18px] bg-[#FAFAF7] border border-stone-100">
-            <p className="text-[13px] text-slate-400 mb-2">现在只做一件事</p>
-            <p className="text-[15px] text-slate-800 leading-[1.8]">{card.oneAction}</p>
+          <div className="brake-action-box mt-7 px-5 py-4">
+            <p className="text-[13px] font-medium text-stone-500 mb-2">现在只做一件事</p>
+            <p className="text-[15px] text-stone-800 leading-[1.8]">{card.oneAction}</p>
           </div>
 
           <CalmCardDetail
@@ -243,7 +246,7 @@ function CardDetailPage() {
           {/* ===== Optional position supplement (shown when the main card would
                be more accurate with position info) ===== */}
           {card.needsPositionInfo && (
-          <div className="mt-4 p-5 rounded-[20px] bg-[#FAFAF7] border border-stone-200/70">
+          <div className="brake-subpanel mt-4 p-5 rounded-[18px]">
             <p className="text-[14px] text-slate-600 leading-relaxed mb-3">
               {positionPrompt}
             </p>
@@ -253,13 +256,13 @@ function CardDetailPage() {
               onChange={(e) => setPositionInput(e.target.value)}
               placeholder={positionPlaceholder}
               disabled={refining}
-              className="w-full px-4 py-3 rounded-[16px] bg-white border border-stone-200/80 focus:border-slate-300 outline-none transition-colors text-[15px] placeholder:text-slate-400 disabled:opacity-60"
+              className="w-full px-4 py-3 rounded-[16px] bg-white border border-[#2582be]/15 focus:border-[#2582be]/40 outline-none transition-colors text-[15px] text-[#102334] placeholder:text-[#10344e]/35 disabled:opacity-60"
             />
-            {refineError && <p className="mt-2 text-[13px] text-amber-700">{refineError}</p>}
+            {refineError && <p className="mt-2 text-[13px] text-neutral-700">{refineError}</p>}
             <button
               onClick={handleRefine}
               disabled={refining || !positionInput.trim()}
-              className="mt-3 w-full py-2.5 rounded-2xl bg-slate-800 text-white text-[15px] font-medium hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              className="brake-primary mt-3 w-full py-2.5 rounded-xl text-white text-[15px] font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
               {refining ? (
                 <>
@@ -278,7 +281,7 @@ function CardDetailPage() {
           {card.positionCard ? (
             <PositionCardView positionCard={card.positionCard} />
           ) : (
-            <div className="p-5 rounded-[20px] bg-white/70 border border-stone-200/70">
+            <div className="brake-subpanel p-5 rounded-[18px]">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[14px] font-medium text-slate-700">再深入一层</p>
@@ -291,7 +294,7 @@ function CardDetailPage() {
                 <button
                   type="button"
                   onClick={() => setShowPositionBuilder(!showPositionBuilder)}
-                  className="shrink-0 px-3 py-1.5 rounded-full bg-slate-800 text-white text-[13px] hover:bg-slate-900 transition-colors"
+                  className="brake-primary shrink-0 px-3 py-1.5 rounded-xl text-white text-[13px] transition-colors"
                 >
                   看看仓位节奏
                 </button>
@@ -308,16 +311,19 @@ function CardDetailPage() {
                     placeholder={positionHealthPlaceholder}
                     rows={4}
                     disabled={generatingPosition}
-                    className="w-full px-4 py-3 rounded-[16px] bg-white border border-stone-200/80 focus:border-slate-300 outline-none transition-colors resize-none text-[15px] leading-relaxed placeholder:text-slate-400 disabled:opacity-60"
+                    className="w-full px-4 py-3 rounded-[16px] bg-white border border-[#2582be]/15 focus:border-[#2582be]/40 outline-none transition-colors resize-none text-[15px] leading-relaxed text-[#102334] placeholder:text-[#10344e]/35 disabled:opacity-60"
                   />
-                  <p className="mt-2 text-[12px] text-slate-400">
+                  <p className="mt-2 flex items-start gap-1.5 text-[12px] text-slate-400">
+                    <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
                     能写比例最好；只写大概结构也可以。
+                    </span>
                   </p>
-                  {positionError && <p className="mt-2 text-[13px] text-amber-700">{positionError}</p>}
+                  {positionError && <p className="mt-2 text-[13px] text-neutral-700">{positionError}</p>}
                   <button
                     onClick={handleGeneratePositionCard}
                     disabled={generatingPosition || !positionHealthInput.trim()}
-                    className="mt-3 w-full py-2.5 rounded-2xl bg-slate-800 text-white text-[15px] font-medium hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                    className="brake-primary mt-3 w-full py-2.5 rounded-xl text-white text-[15px] font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                   >
                     {generatingPosition ? (
                       <>
@@ -351,7 +357,7 @@ function CardDetailPage() {
               </button>
               <button
                 onClick={handleDelete}
-                className="flex-1 py-2.5 px-4 bg-slate-800 text-white rounded-2xl hover:bg-slate-900 transition-colors"
+                className="brake-primary flex-1 py-2.5 px-4 text-white rounded-2xl transition-colors"
               >
                 删除
               </button>
@@ -365,8 +371,8 @@ function CardDetailPage() {
 
 function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="bg-white rounded-[20px] border border-stone-100 p-5">
-      <h3 className="text-[13px] font-medium text-slate-400 mb-3">{title}</h3>
+    <section className="brake-subpanel rounded-[16px] p-5">
+      <h3 className="text-[13px] font-medium text-stone-500 mb-3">{title}</h3>
       {children}
     </section>
   );
@@ -382,9 +388,9 @@ function UserInputNote({
   className?: string;
 }) {
   return (
-    <div className={`rounded-[16px] bg-[#FAFAF7] border border-stone-100 px-4 py-3 ${className}`}>
-      <p className="text-[12px] text-slate-400 mb-1.5">{label}</p>
-      <p className="text-[14px] text-slate-500 leading-[1.7] line-clamp-3">{text}</p>
+    <div className={`brake-subpanel rounded-[14px] px-4 py-3 ${className}`}>
+      <p className="text-[12px] text-stone-400 mb-1.5">{label}</p>
+      <p className="text-[14px] text-stone-500 leading-[1.7] line-clamp-3">{text}</p>
     </div>
   );
 }
@@ -415,10 +421,10 @@ function CalmCardDetail({
   };
 
   return (
-    <div ref={detailRef} className="mt-6 border-t border-stone-100 pt-5 scroll-mt-4">
+    <div ref={detailRef} className="mt-6 border-t border-stone-900/10 pt-5 scroll-mt-4">
       <button
         onClick={onToggle}
-        className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors"
+        className="flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-800 transition-colors"
       >
         {showDetail ? '收起分析详情' : '展开分析详情'}
         <ChevronDown className={`w-4 h-4 transition-transform ${showDetail ? 'rotate-180' : ''}`} />
@@ -486,9 +492,7 @@ function CalmCardDetail({
             </DetailSection>
           )}
 
-          <p className="text-[12px] text-slate-400 leading-relaxed px-1 pt-1">
-            {card.detail.disclaimer}
-          </p>
+          <InfoNote className="px-1 pt-1">{card.detail.disclaimer}</InfoNote>
 
           <div className="flex justify-end pt-1">
             <button
@@ -520,7 +524,7 @@ function PositionCardView({ positionCard }: { positionCard: PositionCard }) {
   }, [showDetail]);
 
   return (
-    <section className="bg-white rounded-[24px] shadow-[0_8px_30px_rgba(15,23,42,0.05)] border border-stone-100 p-6">
+    <section className="brake-card rounded-[22px] p-6">
       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${statusStyle.bg}`}>
         <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
         <span className={`text-[12px] font-medium ${statusStyle.text}`}>
@@ -528,21 +532,21 @@ function PositionCardView({ positionCard }: { positionCard: PositionCard }) {
         </span>
       </span>
 
-      <h2 className="text-[19px] font-semibold text-slate-900 mt-5 mb-3">仓位节奏卡</h2>
-      <p className="text-[16px] text-slate-800 leading-[1.85]">{positionCard.headline}</p>
+      <h2 className="text-[19px] font-semibold text-stone-950 mt-5 mb-3">仓位节奏卡</h2>
+      <p className="text-[16px] text-stone-800 leading-[1.85]">{positionCard.headline}</p>
 
       {positionCard.positionText && (
         <UserInputNote label="你补充的仓位是" text={positionCard.positionText} className="mt-5" />
       )}
 
-      <div className="mt-5 p-4 rounded-[18px] bg-[#FAFAF7] border border-stone-100">
-        <p className="text-[13px] text-slate-400 mb-2">先看节奏</p>
-        <p className="text-[15px] text-slate-800 leading-[1.8]">{positionCard.rhythmInsight}</p>
+      <div className="brake-subpanel mt-5 p-4 rounded-[14px]">
+        <p className="text-[13px] font-medium text-stone-500 mb-2">先看节奏</p>
+        <p className="text-[15px] text-stone-800 leading-[1.8]">{positionCard.rhythmInsight}</p>
       </div>
 
-      <div className="mt-4 p-4 rounded-[18px] bg-[#FAFAF7] border border-stone-100">
-        <p className="text-[13px] text-slate-400 mb-2">现在只做一件事</p>
-        <p className="text-[15px] text-slate-800 leading-[1.8]">{positionCard.oneAction}</p>
+      <div className="brake-action-box mt-4 px-4 py-4">
+        <p className="text-[13px] font-medium text-stone-500 mb-2">现在只做一件事</p>
+        <p className="text-[15px] text-stone-800 leading-[1.8]">{positionCard.oneAction}</p>
       </div>
 
       {positionCard.checkpoints.length > 0 && (
@@ -573,7 +577,7 @@ function PositionCardView({ positionCard }: { positionCard: PositionCard }) {
           className="mt-4 space-y-3 scroll-mt-4 animate-in fade-in slide-in-from-top-1 duration-200"
         >
           {positionCard.detail.findings.map((finding, i) => (
-            <div key={i} className="rounded-[16px] border border-stone-100 bg-[#FAFAF7] p-4">
+            <div key={i} className="brake-subpanel rounded-[14px] p-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[14px] font-medium text-slate-700">{finding.title}</p>
                 <span className="text-[12px] text-slate-400">{POSITION_LEVEL_LABELS[finding.level]}</span>
@@ -591,9 +595,7 @@ function PositionCardView({ positionCard }: { positionCard: PositionCard }) {
               ))}
             </ul>
           )}
-          <p className="text-[12px] text-slate-400 leading-relaxed px-1">
-            {positionCard.detail.disclaimer}
-          </p>
+          <InfoNote className="px-1">{positionCard.detail.disclaimer}</InfoNote>
         </div>
       )}
     </section>
@@ -609,10 +611,9 @@ const POSITION_LEVEL_LABELS = {
 };
 
 function QuietBar({ label, score, higherWorse }: { label: string; score: number; higherWorse: boolean }) {
-  // Concerning = high when higherWorse, low otherwise. Use warm amber for
-  // "worth attention", neutral slate otherwise — no green, no bright red.
+  // Concerning = high when higherWorse, low otherwise.
   const concerning = higherWorse ? score >= 60 : score <= 40;
-  const barColor = concerning ? 'bg-amber-400' : 'bg-slate-300';
+  const barColor = concerning ? 'bg-[#0877c7]' : 'bg-sky-200';
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
@@ -623,6 +624,21 @@ function QuietBar({ label, score, higherWorse }: { label: string; score: number;
         <div className={`h-1.5 rounded-full ${barColor}`} style={{ width: `${score}%` }} />
       </div>
     </div>
+  );
+}
+
+function InfoNote({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <p className={`flex items-start gap-1.5 text-[12px] text-slate-400 leading-relaxed ${className}`}>
+      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+      <span>{children}</span>
+    </p>
   );
 }
 
