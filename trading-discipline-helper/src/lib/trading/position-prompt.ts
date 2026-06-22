@@ -26,8 +26,16 @@ export const POSITION_CARD_SYSTEM_PROMPT = `你是「交易冷静卡」里的仓
 
 语气：冷静、克制、像理性的朋友。不要吓人，不要审判。只输出 JSON 对象，不要额外解释。`;
 
+function outputLanguageInstruction(locale?: string) {
+  return locale === 'en'
+    ? 'Output language: English. Write every user-facing string in natural, concise English. Keep the same compliance boundaries. Do not include Chinese text unless it is a user-provided ticker/name/fact that must be quoted.'
+    : '输出语言：简体中文。所有面向用户的字段都用自然、克制的中文表达。';
+}
+
 export function buildPositionPrompt(input: PositionCardInput, summary: PositionRuleSummary): LLMMessage[] {
-  const prompt = `用户刚生成了一张交易冷静卡，现在想进一步看看仓位稳不稳。
+  const prompt = `${outputLanguageInstruction(input.locale)}
+
+用户刚生成了一张交易冷静卡，现在想进一步看看仓位稳不稳。
 
 用户原始想法：
 ${input.userThought || '（未提供）'}

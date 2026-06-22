@@ -7,9 +7,10 @@ import { saveCard, type Scene, type CalmCard } from '@/lib/trading';
 import { apiPost, ApiError } from '@/lib/api-client';
 import { isUnsupportedTradingInput } from '@/lib/trading/input-guard';
 import { m } from '@/paraglide/messages.js';
-import { getLocale, locales, localizeUrl } from '@/paraglide/runtime.js';
+import { getLocale, locales, localizeUrl, setLocale } from '@/paraglide/runtime.js';
 
 const DRAFT_KEY = 'calm_card_home_draft';
+const LOCALE_HINT_DISMISS_KEY = 'before_you_trade_locale_hint_dismissed';
 
 const SCENE_CHIPS: { value: Scene; labelKey: keyof typeof m }[] = [
   { value: 'buy', labelKey: 'home.scene.buy' },
@@ -56,10 +57,12 @@ function hasRealContent(thoughts: string, scene: Scene | null): boolean {
 
 function HomePage() {
   const navigate = useNavigate();
+  const locale = getLocale();
   const currentYear = new Date().getFullYear();
   const [thoughts, setThoughts] = useState('');
   const [scene, setScene] = useState<Scene | null>(null);
   const [hint, setHint] = useState(false);
+  const [showLocaleHint, setShowLocaleHint] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,6 +89,44 @@ function HomePage() {
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ thoughts, scene }));
   }, [thoughts, scene]);
 
+  useEffect(() => {
+    if (locale !== 'en' || typeof navigator === 'undefined') return;
+
+    try {
+      if (localStorage.getItem(LOCALE_HINT_DISMISS_KEY) === '1') return;
+      const hasExplicitLocale = document.cookie
+        .split(';')
+        .some((item) => item.trim().startsWith('PARAGLIDE_LOCALE='));
+      if (hasExplicitLocale) return;
+    } catch {
+      return;
+    }
+
+    const preferredLanguages = navigator.languages?.length ? navigator.languages : [navigator.language];
+    const prefersChinese = preferredLanguages.some((language) =>
+      language.toLowerCase().startsWith('zh')
+    );
+    setShowLocaleHint(prefersChinese);
+  }, [locale]);
+
+  const dismissLocaleHint = () => {
+    try {
+      localStorage.setItem(LOCALE_HINT_DISMISS_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+    setShowLocaleHint(false);
+  };
+
+  const switchToChinese = () => {
+    try {
+      localStorage.setItem(LOCALE_HINT_DISMISS_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+    setLocale('zh');
+  };
+
   const handleSubmit = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     if (!hasRealContent(thoughts, scene)) {
@@ -103,6 +144,7 @@ function HomePage() {
 
     const input = {
       type: scene ?? 'unclear',
+      locale,
       symbol: '',
       thoughts: thoughts.trim(),
       emotions: [],
@@ -154,6 +196,32 @@ function HomePage() {
       {/* First screen */}
       <main className="flex-1 px-5 pb-10 lg:pb-16">
         <div className="max-w-6xl mx-auto w-full pt-8 sm:pt-10 lg:pt-16">
+          {showLocaleHint && (
+            <div className="brake-card mb-5 flex flex-col gap-3 rounded-[18px] px-4 py-3 text-sm text-slate-700 shadow-[0_16px_48px_rgba(5,54,99,0.1)] sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold text-slate-900">{m['home.locale_hint.title']()}</p>
+                <p className="mt-1 text-[13px] leading-6 text-slate-600">
+                  {m['home.locale_hint.text']()}
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  onClick={dismissLocaleHint}
+                  className="rounded-full border border-slate-200 bg-white/72 px-3.5 py-1.5 text-[13px] font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-white hover:text-slate-800"
+                >
+                  {m['home.locale_hint.stay']()}
+                </button>
+                <button
+                  type="button"
+                  onClick={switchToChinese}
+                  className="rounded-full bg-[#086aa8] px-3.5 py-1.5 text-[13px] font-medium text-white shadow-[0_8px_20px_rgba(8,106,168,0.18)] transition-colors hover:bg-[#075b96]"
+                >
+                  {m['home.locale_hint.switch']()}
+                </button>
+              </div>
+            </div>
+          )}
           <div className="grid gap-8 lg:grid-cols-[0.86fr_1.14fr] lg:gap-12 xl:gap-16 items-start">
             {/* Title */}
             <section className="max-w-xl">

@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeft, Trash2 } from 'lucide-react';
-import { getCardRecords, deleteCard, SCENE_LABELS, type CalmStatus } from '@/lib/trading';
+import { getCardRecords, deleteCard, type CalmStatus, type Scene } from '@/lib/trading';
+import { m } from '@/paraglide/messages.js';
+import { getLocale } from '@/paraglide/runtime.js';
 import { useState, useEffect } from 'react';
 
 const STATUS_STYLE: Record<CalmStatus, { dot: string; text: string; bg: string }> = {
@@ -10,7 +12,18 @@ const STATUS_STYLE: Record<CalmStatus, { dot: string; text: string; bg: string }
   review_not_trade: { dot: 'bg-slate-500', text: 'text-slate-700', bg: 'bg-sky-50' },
 };
 
+const SCENE_LABEL_KEYS: Record<Scene, keyof typeof m> = {
+  buy: 'card.scene.buy',
+  add: 'card.scene.add',
+  take_profit: 'card.scene.take_profit',
+  cut: 'card.scene.cut',
+  missed: 'card.scene.missed',
+  chase_loss: 'card.scene.chase_loss',
+  unclear: 'card.scene.unclear',
+};
+
 function HistoryPage() {
+  const locale = getLocale();
   const [records, setRecords] = useState(getCardRecords());
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -26,7 +39,7 @@ function HistoryPage() {
 
   const formatDate = (isoString: string) => {
     const date = new Date(isoString);
-    return date.toLocaleString('zh-CN', {
+    return date.toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US', {
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
@@ -35,9 +48,9 @@ function HistoryPage() {
   };
 
   const summarizeThought = (text?: string) => {
-    if (!text) return '未记录具体想法';
+    if (!text) return m['history.thought_empty']();
     const normalized = text.replace(/\s+/g, ' ').trim();
-    if (!normalized) return '未记录具体想法';
+    if (!normalized) return m['history.thought_empty']();
     return normalized.length > 58 ? `${normalized.slice(0, 58)}…` : normalized;
   };
 
@@ -51,7 +64,7 @@ function HistoryPage() {
           </Link>
           <span className="inline-flex items-center gap-2.5 font-semibold text-white drop-shadow-[0_1px_8px_rgba(5,54,99,0.24)]">
             <img src="/logo.svg" alt="" className="h-6 w-6 rounded-lg shadow-[0_6px_16px_rgba(5,54,99,0.2)]" />
-            冷静记录
+            {m['history.header.title']()}
           </span>
         </div>
       </header>
@@ -59,13 +72,15 @@ function HistoryPage() {
       <main className="flex-1 max-w-6xl mx-auto px-5 pb-12 w-full">
         {records.length === 0 ? (
           <div className="max-w-xl mx-auto text-center py-20">
-            <h1 className="text-[28px] font-semibold text-white mb-3">还没有冷静记录</h1>
-            <p className="text-white/86 leading-[1.9] drop-shadow-[0_1px_10px_rgba(5,54,99,0.18)]">下次很想操作时，先来这里停 30 秒。</p>
+            <h1 className="text-[28px] font-semibold text-white mb-3">{m['history.empty.title']()}</h1>
+            <p className="text-white/86 leading-[1.9] drop-shadow-[0_1px_10px_rgba(5,54,99,0.18)]">
+              {m['history.empty.text']()}
+            </p>
             <Link
               to="/"
               className="brake-primary inline-flex items-center mt-6 px-6 py-3 text-white rounded-xl transition-colors"
             >
-              写下现在的想法
+              {m['history.empty.action']()}
             </Link>
           </div>
         ) : (
@@ -74,14 +89,14 @@ function HistoryPage() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h1 className="text-[26px] sm:text-[30px] font-semibold text-black leading-tight">
-                    冷静记录
+                    {m['history.title']()}
                   </h1>
                   <p className="mt-2 text-[14px] text-black/[0.58] leading-relaxed">
-                    这些不是交易建议，是你每次上头前留下的刹车痕迹。
+                    {m['history.subtitle']()}
                   </p>
                 </div>
                 <div className="rounded-full border border-black/10 bg-black/[0.03] px-3 py-1.5 text-[13px] text-black/56">
-                  共 {records.length} 条
+                  {m['history.count']({ count: records.length })}
                 </div>
               </div>
             </div>
@@ -98,7 +113,7 @@ function HistoryPage() {
                   >
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <span className="text-[13px] text-slate-400">
-                        {formatDate(record.createdAt)} · {SCENE_LABELS[record.type]}
+                        {formatDate(record.createdAt)} · {m[SCENE_LABEL_KEYS[record.type]]()}
                         {record.symbol ? ` · ${record.symbol}` : ''}
                       </span>
                       <button
@@ -107,7 +122,7 @@ function HistoryPage() {
                           setDeleteId(record.id);
                         }}
                         className="p-1.5 -mr-1 hover:bg-black/[0.06] rounded-lg transition-colors text-black/25 hover:text-black/55 shrink-0"
-                        title="删除"
+                        title={m['history.delete.button_title']()}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -121,7 +136,7 @@ function HistoryPage() {
                     </p>
                     {record.positionText && (
                       <p className="text-[13px] text-slate-400 leading-relaxed mb-3 line-clamp-1">
-                        仓位：{summarizeThought(record.positionText)}
+                        {m['history.position_prefix']()}：{summarizeThought(record.positionText)}
                       </p>
                     )}
 
@@ -143,20 +158,20 @@ function HistoryPage() {
       {deleteId && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-[24px] p-6 max-w-sm w-full shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-800 mb-2">删除这条记录？</h3>
-            <p className="text-slate-500 mb-6 text-sm">删除后无法恢复。</p>
+            <h3 className="text-lg font-semibold text-slate-800 mb-2">{m['history.delete.title']()}</h3>
+            <p className="text-slate-500 mb-6 text-sm">{m['history.delete.text']()}</p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteId(null)}
                 className="flex-1 py-2.5 px-4 border border-stone-200 rounded-2xl text-slate-700 hover:bg-stone-50 transition-colors"
               >
-                取消
+                {m['history.delete.cancel']()}
               </button>
               <button
                 onClick={() => handleDelete(deleteId)}
                 className="brake-primary flex-1 py-2.5 px-4 text-white rounded-2xl transition-colors"
               >
-                删除
+                {m['history.delete.confirm']()}
               </button>
             </div>
           </div>
@@ -167,8 +182,12 @@ function HistoryPage() {
 }
 
 export const Route = createFileRoute('/history')({
+  loader: () => {
+    const locale = getLocale();
+    return { title: m['history.seo.title']({}, { locale }) };
+  },
   component: HistoryPage,
-  head: () => ({
-    meta: [{ title: '冷静记录 — 交易冷静卡' }],
+  head: ({ loaderData }) => ({
+    meta: [{ title: loaderData?.title ?? m['history.seo.title']() }],
   }),
 });

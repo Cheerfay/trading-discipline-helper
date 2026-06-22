@@ -5,7 +5,6 @@ import {
   deleteCard,
   updateCard,
   attachPositionCard,
-  SCENE_LABELS,
   type CalmStatus,
   type CalmCard,
   type PositionCard,
@@ -14,8 +13,9 @@ import {
 import { apiPost, ApiError } from '@/lib/api-client';
 import {
   isUnsupportedTradingInput,
-  UNSUPPORTED_INPUT_MESSAGE,
 } from '@/lib/trading/input-guard';
+import { m } from '@/paraglide/messages.js';
+import { getLocale } from '@/paraglide/runtime.js';
 import { useState, useEffect, useRef } from 'react';
 
 // Status visuals — muted, never alarming. No high-saturation red/green.
@@ -36,6 +36,7 @@ const POSITION_STATUS_STYLE: Record<PositionHealthStatus, { dot: string; text: s
 function CardDetailPage() {
   const navigate = useNavigate();
   const { id } = Route.useParams();
+  const locale = getLocale();
   const [card, setCard] = useState(getCardById(id));
   const positionSectionRef = useRef<HTMLDivElement>(null);
   const shouldScrollToPositionRef = useRef(false);
@@ -68,13 +69,15 @@ function CardDetailPage() {
       <div className="brake-page min-h-screen flex flex-col text-slate-900">
         <header className="brake-nav px-5 py-4">
           <div className="max-w-6xl mx-auto">
-            <span className="font-semibold text-white drop-shadow-[0_1px_8px_rgba(5,54,99,0.24)]">没有找到这张卡</span>
+            <span className="font-semibold text-white drop-shadow-[0_1px_8px_rgba(5,54,99,0.24)]">
+              {m['card.not_found.title']()}
+            </span>
           </div>
         </header>
         <main className="flex-1 max-w-6xl mx-auto px-5 py-12 w-full text-center">
-          <p className="text-white/70 mb-4">这张冷静卡不存在或已被删除。</p>
+          <p className="text-white/70 mb-4">{m['card.not_found.text']()}</p>
           <Link to="/" className="text-white underline underline-offset-4">
-            回到首页
+            {m['card.not_found.back']()}
           </Link>
         </main>
       </div>
@@ -91,7 +94,7 @@ function CardDetailPage() {
   const handleRefine = async () => {
     if (!card || !positionInput.trim()) return;
     if (isUnsupportedTradingInput(positionInput)) {
-      setRefineError(UNSUPPORTED_INPUT_MESSAGE);
+      setRefineError(m['home.error.unsupported']());
       return;
     }
     setRefining(true);
@@ -107,7 +110,8 @@ function CardDetailPage() {
       maxLossTolerance: '',
       originalPlan: '',
       focusChecks: [],
-      extraAnswers: { 仓位补充: positionInput.trim() },
+      locale,
+      extraAnswers: { [locale === 'en' ? 'Position context' : '仓位补充']: positionInput.trim() },
       createdAt: new Date().toISOString(),
     };
 
@@ -121,14 +125,14 @@ function CardDetailPage() {
       setRefining(false);
     } catch (err) {
       setRefining(false);
-      setRefineError(err instanceof ApiError ? err.message : '更新失败，请稍后重试');
+      setRefineError(err instanceof ApiError ? err.message : m['card.refine.error']());
     }
   };
 
   const handleGeneratePositionCard = async () => {
     if (!card || !positionHealthInput.trim()) return;
     if (isUnsupportedTradingInput(positionHealthInput)) {
-      setPositionError(UNSUPPORTED_INPUT_MESSAGE);
+      setPositionError(m['home.error.unsupported']());
       return;
     }
     setGeneratingPosition(true);
@@ -140,6 +144,7 @@ function CardDetailPage() {
       symbol: card.symbol,
       userThought: card.userThought,
       positionText: positionHealthInput.trim(),
+      locale,
       createdAt: new Date().toISOString(),
     };
 
@@ -153,7 +158,7 @@ function CardDetailPage() {
       setPositionHealthInput('');
     } catch (err) {
       setGeneratingPosition(false);
-      setPositionError(err instanceof ApiError ? err.message : '生成失败，请稍后重试');
+      setPositionError(err instanceof ApiError ? err.message : m['card.position.error']());
     }
   };
 
@@ -163,15 +168,14 @@ function CardDetailPage() {
   // lightly held, so don't presume they hold it; take-profit/cut users do hold it.
   const buyLike = card.type === 'buy' || card.type === 'add';
   const positionPrompt = card.positionInfoReason
-    ? `这张卡还缺一个关键背景：${card.positionInfoReason}。补一句后，我会重新看这次操作本身。`
+    ? m['card.position_prompt_with_reason']({ reason: card.positionInfoReason })
     : buyLike
-      ? '这张卡还缺一个关键背景：仓位。用一句话说说目前空仓、或这只已经占了多少，这次大概想动多少；补完后我会重新看这次操作本身。'
-      : '这张卡还缺一个关键背景：仓位。用一句话告诉我这只现在占你多少、这次大概想动多少；补完后我会重新看这次操作本身。';
+      ? m['card.position_prompt_buy']()
+      : m['card.position_prompt_hold']();
   const positionPlaceholder = buyLike
-    ? '例如：目前空仓，想先买 10 万试试'
-    : '例如：现在占 20%，这次想卖一半';
-  const positionHealthPlaceholder =
-    '例如：我有茅台 30%、宁德 20%，剩下主要是现金；或者：这只现在占 25%，还想再加一点';
+    ? m['card.position_placeholder_buy']()
+    : m['card.position_placeholder_hold']();
+  const positionHealthPlaceholder = m['card.position_health_placeholder']();
 
   return (
     <div className="brake-page min-h-screen flex flex-col text-slate-900">
@@ -189,10 +193,10 @@ function CardDetailPage() {
                 className="h-6 w-6 rounded-lg shadow-[0_6px_16px_rgba(5,54,99,0.2)] shrink-0"
               />
               <h1 className="font-semibold text-white leading-tight drop-shadow-[0_1px_8px_rgba(5,54,99,0.24)] shrink-0">
-                冷静卡
+                {m['card.header.title']()}
               </h1>
               <span className="min-w-0 truncate rounded-full border border-white/18 bg-white/10 px-2.5 py-1 text-[12px] text-white/78">
-                {SCENE_LABELS[card.type]}
+                {m[`card.scene.${card.type}` as keyof typeof m]()}
                 {card.symbol ? ` · ${card.symbol}` : ''}
               </span>
             </div>
@@ -200,7 +204,7 @@ function CardDetailPage() {
           <button
             onClick={() => setShowDeleteConfirm(true)}
             className="p-2 -mr-2 hover:bg-white/10 rounded-lg transition-colors text-white/45 hover:text-white shrink-0"
-            title="删除"
+            title={m['card.header.delete_title']()}
           >
             <Trash2 className="w-5 h-5" />
           </button>
@@ -218,7 +222,7 @@ function CardDetailPage() {
           </span>
 
           {/* Title */}
-          <h2 className="text-[22px] font-semibold text-stone-950 mt-5 mb-4">先别急</h2>
+          <h2 className="text-[22px] font-semibold text-stone-950 mt-5 mb-4">{m['card.main.title']()}</h2>
 
           {/* Headline — the single most important thing on the screen */}
           <p className="text-[18px] sm:text-[19px] text-stone-800 leading-[1.85]">
@@ -226,7 +230,7 @@ function CardDetailPage() {
           </p>
 
           {card.userThought && (
-            <UserInputNote label="你这次问的是" text={card.userThought} className="mt-5" />
+            <UserInputNote label={m['card.user_thought_label']()} text={card.userThought} className="mt-5" />
           )}
 
           {/* Lesson (review scenes only) */}
@@ -236,7 +240,7 @@ function CardDetailPage() {
 
           {/* One action */}
           <div className="brake-action-box mt-7 px-5 py-4">
-            <p className="text-[13px] font-medium text-stone-500 mb-2">现在只做一件事</p>
+            <p className="text-[13px] font-medium text-stone-500 mb-2">{m['card.one_action_label']()}</p>
             <p className="text-[15px] text-stone-800 leading-[1.8]">{card.oneAction}</p>
           </div>
 
@@ -271,10 +275,10 @@ function CardDetailPage() {
               {refining ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  正在重新看…
+                  {m['card.refine.loading']()}
                 </>
               ) : (
-                '补充后重看这张卡'
+                m['card.refine.submit']()
               )}
             </button>
           </div>
@@ -288,11 +292,11 @@ function CardDetailPage() {
             <div className="brake-subpanel p-5 rounded-[18px]">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[14px] font-medium text-slate-700">再深入一层</p>
+                  <p className="text-[14px] font-medium text-slate-700">{m['card.position.deeper_title']()}</p>
                   <p className="mt-1 text-[14px] text-slate-500 leading-relaxed">
                     {card.needsPositionInfo
-                      ? '也可以先不重看主卡，直接看看仓位节奏。可以写整体持仓，也可以写这次打算动多少。'
-                      : '看看仓位节奏稳不稳。可以写整体持仓，也可以写这次打算动多少；只查纪律和集中度。'}
+                      ? m['card.position.deeper_text_needs_position']()
+                      : m['card.position.deeper_text']()}
                   </p>
                 </div>
                 <button
@@ -300,7 +304,7 @@ function CardDetailPage() {
                   onClick={() => setShowPositionBuilder(!showPositionBuilder)}
                   className="brake-primary shrink-0 px-3 py-1.5 rounded-xl text-white text-[13px] transition-colors"
                 >
-                  看看仓位节奏
+                  {m['card.position.open_builder']()}
                 </button>
               </div>
 
@@ -320,7 +324,7 @@ function CardDetailPage() {
                   <p className="mt-2 flex items-start gap-1.5 text-[12px] text-slate-400">
                     <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span>
-                    能写比例最好；只写大概结构也可以。
+                    {m['card.position.input_hint']()}
                     </span>
                   </p>
                   {positionError && <p className="mt-2 text-[13px] text-neutral-700">{positionError}</p>}
@@ -332,10 +336,10 @@ function CardDetailPage() {
                     {generatingPosition ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        正在看仓位节奏…
+                        {m['card.position.loading']()}
                       </>
                     ) : (
-                      '帮我看看仓位安排'
+                      m['card.position.submit']()
                     )}
                   </button>
                 </div>
@@ -350,20 +354,20 @@ function CardDetailPage() {
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-[24px] p-6 max-w-sm w-full shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-800 mb-2">删除这张卡？</h3>
-            <p className="text-slate-500 mb-6 text-sm">删除后无法恢复。</p>
+            <h3 className="text-lg font-semibold text-slate-800 mb-2">{m['card.delete.title']()}</h3>
+            <p className="text-slate-500 mb-6 text-sm">{m['card.delete.text']()}</p>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
                 className="flex-1 py-2.5 px-4 border border-stone-200 rounded-2xl text-slate-700 hover:bg-stone-50 transition-colors"
               >
-                取消
+                {m['card.delete.cancel']()}
               </button>
               <button
                 onClick={handleDelete}
                 className="brake-primary flex-1 py-2.5 px-4 text-white rounded-2xl transition-colors"
               >
-                删除
+                {m['card.delete.confirm']()}
               </button>
             </div>
           </div>
@@ -430,20 +434,20 @@ function CalmCardDetail({
         onClick={onToggle}
         className="flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-800 transition-colors"
       >
-        {showDetail ? '收起分析详情' : '展开分析详情'}
+        {showDetail ? m['card.detail.collapse']() : m['card.detail.expand']()}
         <ChevronDown className={`w-4 h-4 transition-transform ${showDetail ? 'rotate-180' : ''}`} />
       </button>
 
       {showDetail && (
         <div className="mt-5 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
           {card.selfCheckQuestions.length > 0 && (
-            <DetailSection title="如果还想继续操作，先问自己 3 个问题">
+            <DetailSection title={m['card.detail.questions_title']()}>
               <QuestionList questions={card.selfCheckQuestions} tone="strong" />
             </DetailSection>
           )}
 
           {card.detail.emotionAnalysis.length > 0 && (
-            <DetailSection title="情绪识别">
+            <DetailSection title={m['card.detail.emotion_title']()}>
               <div className="space-y-3">
                 {card.detail.emotionAnalysis.map((item, i) => (
                   <div key={i}>
@@ -455,16 +459,16 @@ function CalmCardDetail({
             </DetailSection>
           )}
 
-          <DetailSection title="系统的几个观察">
+          <DetailSection title={m['card.detail.observations_title']()}>
             <div className="space-y-3.5">
-              <QuietBar label="冲动程度" score={card.detail.scores.impulseRisk} higherWorse />
-              <QuietBar label="仓位风险" score={card.detail.scores.positionRisk} higherWorse />
-              <QuietBar label="理由完整度" score={card.detail.scores.reasonQuality} higherWorse={false} />
+              <QuietBar label={m['card.detail.impulse']()} score={card.detail.scores.impulseRisk} higherWorse />
+              <QuietBar label={m['card.detail.position_risk']()} score={card.detail.scores.positionRisk} higherWorse />
+              <QuietBar label={m['card.detail.reason_quality']()} score={card.detail.scores.reasonQuality} higherWorse={false} />
             </div>
           </DetailSection>
 
           {card.detail.risks.length > 0 && (
-            <DetailSection title="可以再留意的点">
+            <DetailSection title={m['card.detail.risks_title']()}>
               <ul className="space-y-2">
                 {card.detail.risks.map((risk, i) => (
                   <li key={i} className="flex gap-2 text-[14px] text-slate-600 leading-relaxed">
@@ -477,7 +481,7 @@ function CalmCardDetail({
           )}
 
           {card.detail.nextActions.length > 0 && (
-            <DetailSection title="如果之后还想做，可以先">
+            <DetailSection title={m['card.detail.next_actions_title']()}>
               <ul className="space-y-2">
                 {card.detail.nextActions.map((action, i) => (
                   <li key={i} className="flex gap-3 text-[14px] text-slate-600 leading-relaxed">
@@ -497,7 +501,7 @@ function CalmCardDetail({
               onClick={handleCollapse}
               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[13px] font-medium text-slate-500 hover:text-slate-700 hover:bg-stone-100/70 transition-colors"
             >
-              收起
+              {m['card.detail.collapse_short']()}
               <ChevronDown className="w-3.5 h-3.5 rotate-180" />
             </button>
           </div>
@@ -529,26 +533,26 @@ function PositionCardView({ positionCard }: { positionCard: PositionCard }) {
         </span>
       </span>
 
-      <h2 className="text-[19px] font-semibold text-stone-950 mt-5 mb-3">仓位节奏卡</h2>
+      <h2 className="text-[19px] font-semibold text-stone-950 mt-5 mb-3">{m['card.position_card.title']()}</h2>
       <p className="text-[16px] text-stone-800 leading-[1.85]">{positionCard.headline}</p>
 
       {positionCard.positionText && (
-        <UserInputNote label="你补充的仓位是" text={positionCard.positionText} className="mt-5" />
+        <UserInputNote label={m['card.position_card.user_position_label']()} text={positionCard.positionText} className="mt-5" />
       )}
 
       <div className="brake-subpanel mt-5 p-4 rounded-[14px]">
-        <p className="text-[13px] font-medium text-stone-500 mb-2">先看节奏</p>
+        <p className="text-[13px] font-medium text-stone-500 mb-2">{m['card.position_card.rhythm_label']()}</p>
         <p className="text-[15px] text-stone-800 leading-[1.8]">{positionCard.rhythmInsight}</p>
       </div>
 
       <div className="brake-action-box mt-4 px-4 py-4">
-        <p className="text-[13px] font-medium text-stone-500 mb-2">现在只做一件事</p>
+        <p className="text-[13px] font-medium text-stone-500 mb-2">{m['card.one_action_label']()}</p>
         <p className="text-[15px] text-stone-800 leading-[1.8]">{positionCard.oneAction}</p>
       </div>
 
       {positionCard.checkpoints.length > 0 && (
         <div className="mt-5">
-          <p className="text-[13px] font-medium text-slate-400 mb-3">再问自己 3 个问题</p>
+          <p className="text-[13px] font-medium text-slate-400 mb-3">{m['card.position_card.questions_title']()}</p>
           <QuestionList questions={positionCard.checkpoints} />
         </div>
       )}
@@ -557,7 +561,7 @@ function PositionCardView({ positionCard }: { positionCard: PositionCard }) {
         onClick={() => setShowDetail(!showDetail)}
         className="mt-5 flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors"
       >
-        展开仓位观察分析
+        {showDetail ? m['card.position_card.collapse']() : m['card.position_card.expand']()}
         <ChevronDown className={`w-4 h-4 transition-transform ${showDetail ? 'rotate-180' : ''}`} />
       </button>
 
@@ -570,7 +574,7 @@ function PositionCardView({ positionCard }: { positionCard: PositionCard }) {
             <div key={i} className="brake-subpanel rounded-[14px] p-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[14px] font-medium text-slate-700">{finding.title}</p>
-                <span className="text-[12px] text-slate-400">{POSITION_LEVEL_LABELS[finding.level]}</span>
+                <span className="text-[12px] text-slate-400">{positionLevelLabel(finding.level)}</span>
               </div>
               <p className="mt-2 text-[14px] text-slate-500 leading-relaxed">{finding.detail}</p>
             </div>
@@ -620,13 +624,10 @@ function QuestionList({
   );
 }
 
-const POSITION_LEVEL_LABELS = {
-  light: '偏轻',
-  balanced: '合理',
-  watch: '偏重',
-  concentrated: '集中',
-  unknown: '待补充',
-};
+function positionLevelLabel(level: string) {
+  const key = `card.position_level.${level}` as keyof typeof m;
+  return m[key] ? m[key]() : level;
+}
 
 function QuietBar({ label, score, higherWorse }: { label: string; score: number; higherWorse: boolean }) {
   // Concerning = high when higherWorse, low otherwise.
@@ -663,6 +664,6 @@ function InfoNote({
 export const Route = createFileRoute('/card/$id')({
   component: CardDetailPage,
   head: () => ({
-    meta: [{ title: '冷静卡 — 交易冷静卡' }],
+    meta: [{ title: m['card.seo.title']() }],
   }),
 });

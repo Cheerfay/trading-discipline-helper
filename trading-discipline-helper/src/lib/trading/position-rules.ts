@@ -78,7 +78,29 @@ function classifySingleRatio(value: number): { level: PositionRiskLevel; label: 
   return { level: 'concentrated', label: '单票过度集中' };
 }
 
-function describeSingleRatio(value: number, level: PositionRiskLevel): string {
+function classifySingleRatioEn(value: number): { level: PositionRiskLevel; label: string } {
+  if (value < 5) return { level: 'light', label: 'Single position is light' };
+  if (value <= 20) return { level: 'balanced', label: 'Single position is relatively balanced' };
+  if (value <= 30) return { level: 'watch', label: 'Single position is getting heavy' };
+  return { level: 'concentrated', label: 'Single position is over-concentrated' };
+}
+
+function describeSingleRatio(value: number, level: PositionRiskLevel, locale?: string): string {
+  if (locale === 'en') {
+    const prefix = `The largest single position you wrote is about ${value}%. `;
+    switch (level) {
+      case 'light':
+        return `${prefix}This looks more like a tracking or starter position. It can keep you involved, but its impact on the whole account is still limited.`;
+      case 'balanced':
+        return `${prefix}This position can already affect account results, but it does not let one security dominate most of the volatility. The next thing to watch is whether similar holdings are stacking up.`;
+      case 'watch':
+        return `${prefix}This position can already move the overall account noticeably. That does not make it wrong, but any further concentration should be checked against the whole portfolio first.`;
+      case 'concentrated':
+        return `${prefix}This gives one security a large influence on account results. The question is not how much you like it, but whether you can tolerate its drag on the overall account.`;
+      default:
+        return `${prefix}Put it back into the whole portfolio first, then check whether this adjustment would make account volatility harder to handle.`;
+    }
+  }
   const prefix = `你写到的最大单一仓位约 ${value}%。`;
   switch (level) {
     case 'light':
@@ -134,7 +156,15 @@ export const POSITION_STATUS_TEXT: Record<PositionHealthStatus, string> = {
   not_enough_info: '信息还不够完整',
 };
 
+export const POSITION_STATUS_TEXT_EN: Record<PositionHealthStatus, string> = {
+  looks_balanced: 'Position rhythm looks relatively steady',
+  worth_attention: 'Position rhythm deserves another look',
+  too_concentrated: 'Concentration needs a pause',
+  not_enough_info: 'Not enough information yet',
+};
+
 export function analyzePositionRules(input: PositionCardInput): PositionRuleSummary {
+  const english = input.locale === 'en';
   const text = [input.positionText, input.userThought].filter(Boolean).join('\n');
   const parsedRatios = extractPositionRatios(text);
   const detectedThemes = detectThemes(text);
@@ -145,21 +175,23 @@ export function analyzePositionRules(input: PositionCardInput): PositionRuleSumm
   let primaryLevel: PositionRiskLevel = 'unknown';
 
   if (maxSingleRatio == null) {
-    missingInfo.push('没有读到明确的仓位比例');
+    missingInfo.push(english ? 'No clear position ratio was detected' : '没有读到明确的仓位比例');
     findings.push({
       kind: 'missing_info',
       level: 'unknown',
-      title: '还缺一个关键数字',
-      detail: '最好补一句这只或最大单一持仓大概占总资产多少。没有这个数字时，只能做节奏层面的提醒。',
+      title: english ? 'One key number is still missing' : '还缺一个关键数字',
+      detail: english
+        ? 'It helps to add how much this holding, or the largest single holding, is as a share of total assets. Without that number, this can only be a rhythm-level check.'
+        : '最好补一句这只或最大单一持仓大概占总资产多少。没有这个数字时，只能做节奏层面的提醒。',
     });
   } else {
-    const classified = classifySingleRatio(maxSingleRatio);
+    const classified = english ? classifySingleRatioEn(maxSingleRatio) : classifySingleRatio(maxSingleRatio);
     primaryLevel = classified.level;
     findings.push({
       kind: 'single_position',
       level: classified.level,
       title: classified.label,
-      detail: describeSingleRatio(maxSingleRatio, classified.level),
+      detail: describeSingleRatio(maxSingleRatio, classified.level, input.locale),
     });
   }
 
@@ -168,8 +200,10 @@ export function analyzePositionRules(input: PositionCardInput): PositionRuleSumm
     findings.push({
       kind: 'all_in',
       level: 'concentrated',
-      title: '一次性投入信号明显',
-      detail: '原文里出现了接近一次性投入的表达。仓位纪律上，这通常比标的本身更值得先停下来处理。',
+      title: english ? 'One-shot allocation signal is obvious' : '一次性投入信号明显',
+      detail: english
+        ? 'Your wording sounds close to putting a large amount in at once. From a position discipline view, that is often worth pausing on before the security itself.'
+        : '原文里出现了接近一次性投入的表达。仓位纪律上，这通常比标的本身更值得先停下来处理。',
     });
   }
 
@@ -178,8 +212,10 @@ export function analyzePositionRules(input: PositionCardInput): PositionRuleSumm
     findings.push({
       kind: 'theme_concentration',
       level: 'watch',
-      title: '可能存在主题集中',
-      detail: '多只持仓如果来自同一行业、主题或宏观风险源，看起来分散，实际可能还是同一个风险。',
+      title: english ? 'Theme concentration may be present' : '可能存在主题集中',
+      detail: english
+        ? 'Several holdings can look diversified while still sharing the same industry, theme, or macro risk source.'
+        : '多只持仓如果来自同一行业、主题或宏观风险源，看起来分散，实际可能还是同一个风险。',
     });
   }
 
@@ -188,14 +224,18 @@ export function analyzePositionRules(input: PositionCardInput): PositionRuleSumm
     findings.push({
       kind: 'cash_buffer',
       level: 'watch',
-      title: '现金缓冲偏紧',
-      detail: '仓位检查不只看买了什么，也看留了多少余地。现金缓冲太薄时，波动会更容易把人推向情绪化操作。',
+      title: english ? 'Cash buffer looks tight' : '现金缓冲偏紧',
+      detail: english
+        ? 'A position check is not only about what you hold. It also asks how much room you still have. A thin cash buffer can push you toward emotional decisions when volatility rises.'
+        : '仓位检查不只看买了什么，也看留了多少余地。现金缓冲太薄时，波动会更容易把人推向情绪化操作。',
     });
   }
 
   if (primaryLevel === 'unknown') primaryLevel = 'balanced';
   const primaryLabel =
-    maxSingleRatio == null ? '先补全仓位数字' : classifySingleRatio(maxSingleRatio).label;
+    maxSingleRatio == null
+      ? english ? 'Add the position number first' : '先补全仓位数字'
+      : (english ? classifySingleRatioEn(maxSingleRatio).label : classifySingleRatio(maxSingleRatio).label);
 
   return {
     primaryLevel,

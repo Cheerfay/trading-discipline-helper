@@ -23,6 +23,17 @@ const STATUS_TEXT: Record<CalmStatus, string> = {
   review_not_trade: '更适合复盘，不适合立刻交易',
 };
 
+const STATUS_TEXT_EN: Record<CalmStatus, string> = {
+  can_think_but_wait: 'You can think, but do not rush',
+  pause_first: 'Pause first',
+  strong_pause: 'Strong pause recommended',
+  review_not_trade: 'Better for review, not action',
+};
+
+function isEnglish(data: TradeCardInput) {
+  return data.locale === 'en';
+}
+
 function deriveStatus(input: TradeCardInput, scores: any): CalmStatus {
   const impulse = scores?.impulseRisk ?? 50;
   const reason = scores?.reasonQuality ?? 50;
@@ -56,6 +67,7 @@ async function generateCard(data: TradeCardInput) {
   }
 
   try {
+    const english = isEnglish(data);
     const messages = buildPrompt(data);
     const response = await callLLM(config, CALM_CARD_SYSTEM_PROMPT, messages);
 
@@ -96,8 +108,12 @@ async function generateCard(data: TradeCardInput) {
       emotionalOpening: parsed.emotionalOpening || '',
       coreInsight: parsed.coreInsight || '',
       calmStatus,
-      calmStatusText: STATUS_TEXT[calmStatus],
-      oneAction: parsed.oneAction || '先离开行情页面 30 分钟，回来后如果还想操作，再写下一个具体理由。',
+      calmStatusText: english ? STATUS_TEXT_EN[calmStatus] : STATUS_TEXT[calmStatus],
+      oneAction:
+        parsed.oneAction ||
+        (english
+          ? 'Step away from the market screen for 30 minutes. If you still want to act when you return, write down one specific reason first.'
+          : '先离开行情页面 30 分钟，回来后如果还想操作，再写下一个具体理由。'),
       selfCheckQuestions: Array.isArray(parsed.selfCheckQuestions)
         ? parsed.selfCheckQuestions.slice(0, 3)
         : [],
@@ -122,7 +138,9 @@ async function generateCard(data: TradeCardInput) {
           ? parsed.detail.nextActions.slice(0, 4)
           : [],
         disclaimer:
-          '本卡片仅用于投资纪律检查和自我复盘，不构成任何投资建议、买卖建议或收益承诺。所有投资决策应由你独立判断并自行承担风险。',
+          english
+            ? 'This card is only for trading discipline checks and self-review. It is not investment advice, buy/sell advice, or a promise of returns. You remain responsible for your own decisions and risks.'
+            : '本卡片仅用于投资纪律检查和自我复盘，不构成任何投资建议、买卖建议或收益承诺。所有投资决策应由你独立判断并自行承担风险。',
       },
       createdAt: new Date().toISOString(),
     };

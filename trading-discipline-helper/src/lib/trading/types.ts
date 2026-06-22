@@ -28,6 +28,7 @@ export type FocusCheck =
 
 export interface TradeCardInput {
   type: Scene;
+  locale?: 'en' | 'zh' | string;
   symbol: string;
   thoughts: string;
   emotions: Emotion[];
@@ -139,6 +140,7 @@ export interface PositionRuleSummary {
 
 export interface PositionCardInput {
   sourceCardId?: string;
+  locale?: 'en' | 'zh' | string;
   scene: Scene;
   symbol: string;
   userThought: string;
